@@ -1,0 +1,6 @@
+{
+  "name": "pr-deck",
+  "version": "0.1.0",
+  "description": "Pane listing your open PRs across repos, grouped into stacks, with next-action buttons",
+  "types": "./types/index.d.ts"
+}

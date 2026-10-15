@@ -1,0 +1,5 @@
+{
+  "name": "claude-pr-list-mod",
+  "owner": { "name": "khaosdoctor" },
+  "plugins": [{ "name": "pr-deck", "source": "./" }]
+}
