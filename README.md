@@ -14,7 +14,7 @@ Below CI, review and diff stats, each card has an action row:
 - ***✦ Fable review***: asks the session to run a review subagent and report back without posting to the code host.
 - ***❯ Work on it***: loads the PR into the session. On GitHub, once the PR is green, idle and has no unresolved threads, it becomes ***✦ Copilot pass***, which requests a Copilot review and works through its comments.
 - ***⎇ Switch here***: asks the current session to move to the PR's repo and branch. If the current folder is not a clone of that repo, the session finds the local clone or clones it, checks out the branch, summarizes the PR and waits for instructions.
-- ***⧉ New session***: runs the new session command in the PR's clone folder with the same prompt as ***Work on it***, so the new session starts with the PR loaded. A toast shows whether it opened or the error it printed.
+- ***⧉ New session***: runs the new session command in the PR's clone folder with the same prompt as ***Work on it***, so the new session starts with the PR loaded. It opens where you work, using the first match in the detection order under Commands, and comes to the front. A toast names where it opened, for example "Opened #3109 in a herdr tab", or shows the error the command printed.
 
 The pane scopes to the repository the session runs in, with a toggle for all repositories. Repos and stacks collapse, and repos can be ignored.
 
@@ -55,7 +55,7 @@ The CLI of each code host you enable, signed in:
 | Gitea, Forgejo | [`tea`](https://gitea.com/gitea/tea) and `jq` | `tea login add` |
 | Azure DevOps | [`az`](https://learn.microsoft.com/cli/azure) with the `azure-devops` extension | `az login`, then `az extension add --name azure-devops` |
 
-The defaults for opening links, the config file and new sessions use macOS (`open` and Terminal). On another system, change the commands under Options.
+The defaults for opening links and the config file use macOS `open`, and new sessions pick a terminal automatically (see Commands). On another system, change the commands under Options.
 
 Gitea, Forgejo and Azure DevOps do not expose CI state or unresolved threads through the calls the mod makes, so their cards show no CI and zero unresolved threads. Azure DevOps lists the PRs of the project `az` detects from the git remote or from `az devops configure`.
 
@@ -114,7 +114,7 @@ Set these in `/config` under pr-deck.
 | Open config file command | `open -t {path}` |
 | Current repo command | `git remote get-url origin` |
 | Local clone folder | empty |
-| New session command | opens macOS Terminal and runs `claude` with the prompt |
+| New session command | empty, which picks a terminal automatically |
 
 Each command is a shell template run with `sh -c`. Placeholders in braces are replaced with the value wrapped in single quotes, so a URL or prompt with spaces or quotes is safe to pass as one argument. Do not add your own quotes around a placeholder.
 
@@ -123,11 +123,25 @@ Each command is a shell template run with `sh -c`. Placeholders in braces are re
 | Open URL command | `{url}` |
 | Open config file command | `{path}` |
 | Current repo command | none |
-| New session command | `{dir}`, `{prompt}`, `{url}`, `{branch}`, `{repo}` |
+| New session command | `{dir}`, `{prompt}`, `{label}`, `{url}`, `{branch}`, `{repo}` |
 
 - **Current repo command**: prints the remote URL of the session's repo. The pane uses it to scope to that repo.
 - **Local clone folder**: where a repo is cloned, for example `~/code/{host}/{owner}/{repo}`. `{host}`, `{owner}` and `{repo}` are filled in as plain text, and a leading `~` becomes your home folder. ***⧉ New session*** starts there, and ***⎇ Switch here*** tells the session to look there first. When empty, ***⧉ New session*** starts in the session's current folder and ***⎇ Switch here*** asks the session to look in nearby folders.
-- **New session command**: `{dir}` is the folder from above, `{prompt}` the first prompt, `{url}` the PR link, `{branch}` its head branch and `{repo}` the `owner/repo` name. For example, `wezterm start --cwd {dir} -- claude {prompt}` opens a WezTerm window instead of Terminal.
+- **New session command**: when empty, the first row that matches the session's environment wins. Multiplexers come before terminal apps.
+
+  | Order | Opens | Matches when |
+  | --- | --- | --- |
+  | 1 | herdr tab | `TERM_PROGRAM` is `herdr` |
+  | 2 | tmux window | `TMUX` is set |
+  | 3 | zellij tab | `ZELLIJ` is set |
+  | 4 | WezTerm tab | `TERM_PROGRAM` is `WezTerm` |
+  | 5 | kitty tab | `KITTY_WINDOW_ID` is set |
+  | 6 | Rio window | `TERM_PROGRAM` is `rio` |
+  | 7 | Ghostty window | app is Ghostty |
+  | 8 | iTerm window | `TERM_PROGRAM` is `iTerm.app` |
+  | 9 | Terminal window | anything else |
+
+  The herdr row needs `jq`. A non-empty command replaces all of this. In it, `{dir}` is the folder from above, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch and `{repo}` the `owner/repo` name. For example, `alacritty --working-directory {dir} -e claude {prompt}` opens an Alacritty window.
 
 ## Config file
 

@@ -138,8 +138,8 @@
     "newSessionCommand": {
       "type": "string",
       "title": "New session command",
-      "description": "Opens a new Claude session for a PR. {dir} is the clone folder and {prompt} the first prompt. The default opens macOS Terminal.",
-      "default": "osascript -e 'on run argv' -e 'tell application \"Terminal\" to do script \"cd \" & quoted form of item 1 of argv & \" && claude \" & quoted form of item 2 of argv' -e 'end run' {dir} {prompt}"
+      "description": "Opens a new Claude session for a PR. {dir} is the clone folder, {prompt} the first prompt and {label} the PR name. Empty (the default) picks automatically: a herdr, tmux, zellij, WezTerm or kitty tab, else Ghostty, iTerm or Terminal.",
+      "default": ""
     }
   }
 }

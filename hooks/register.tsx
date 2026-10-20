@@ -5,7 +5,9 @@ import type { GroupBy, Pr, Snapshot, Stack } from '../types'
 import type { Action } from './prs'
 import { nextAction, toStacks, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
-import { run } from './run'
+import { quote, run } from './run'
+import { TERMINALS } from './terminals'
+import type { TerminalEnv } from './terminals'
 
 const PANE = 'pr-deck'
 const YOUR_MOVE = 'group:your-move'
@@ -206,8 +208,20 @@ export const register: Register = (on, options) => {
     }
     const newSession = async (pr: Pr, prompt: string) => {
       const dir = (await cloneDirOf($, options, pr)) ?? (await $.session.cwd())
-      const result = await run($, str(options.newSessionCommand), { dir, prompt, url: pr.url, branch: pr.head, repo: pr.fullName })
-      $.ui.toast(result.exitCode === 0 ? `Opened a session for #${pr.number}` : short(result.stderr.trim() || `new session command exited ${result.exitCode}`, 200))
+      // an empty option means auto: the first terminal that matches the session's own environment
+      const env: TerminalEnv = {
+        program: await $.env.get('TERM_PROGRAM'),
+        bundleId: await $.env.get('__CFBundleIdentifier'),
+        tmux: await $.env.get('TMUX'),
+        zellij: await $.env.get('ZELLIJ'),
+        kittyWindow: await $.env.get('KITTY_WINDOW_ID'),
+      }
+      const custom = str(options.newSessionCommand).trim()
+      const terminal = TERMINALS.find(t => t.test(env))
+      const vars = { dir, prompt, shellPrompt: quote(prompt), label: `#${pr.number} ${pr.repo}`, url: pr.url, branch: pr.head, repo: pr.fullName }
+      const result = await run($, custom || (terminal?.command ?? ''), vars)
+      const where = custom ? 'a new session' : terminal?.name
+      $.ui.toast(result.exitCode === 0 ? `Opened #${pr.number} in ${where}` : short(result.stderr.trim() || `new session command exited ${result.exitCode}`, 200))
     }
     // ponytail: session state may still hold the removed 'project' value, treat anything else as status
     const folded = new Set(await read($, collapsed))
@@ -334,7 +348,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         {/* ponytail: the header is a filled Box, so the strip spans the pane whatever its width; the empty row after it comes from the next block's marginTop */}
-        <Box flexDirection="column" backgroundColor="userMessageBackground">
+        <Box flexDirection="column" backgroundColor="userMessageBackground" marginTop={1}>
           <Box justifyContent="center">
             <Text wrap="truncate-end">
               <Text bold color="claude">

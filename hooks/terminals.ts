@@ -1,0 +1,62 @@
+import { quote } from './run'
+
+// Where the session itself runs, read from its environment by register.tsx.
+export type TerminalEnv = { program?: string; bundleId?: string; tmux?: string; zellij?: string; kittyWindow?: string }
+export type Terminal = { name: string; test: (env: TerminalEnv) => boolean; command: string }
+
+// Shell templates for opening a new Claude session, filled by run().
+// {dir} {prompt} {label} are single-quoted by fill; {shellPrompt} is already quoted for the
+// terminal's own shell, so it comes out quoted twice and survives being typed into a pane.
+const osascript = (...lines: string[]) => `osascript ${lines.map(line => `-e ${quote(line)}`).join(' ')} {dir} {prompt}`
+
+// Multiplexers come before terminal apps, first match wins; the last entry matches anything.
+export const TERMINALS: Terminal[] = [
+  // ponytail: waits for the first shell prompt, then a second, because typing during shell startup garbles the command; needs jq
+  {
+    name: 'a herdr tab',
+    test: env => env.program === 'herdr',
+    command:
+      "pane=$(herdr tab create --cwd {dir} --label {label} --focus | jq -r .result.root_pane.pane_id) && { herdr pane wait-output \"$pane\" --regex '[❯$%#>]\\s*$' --timeout 10000 >/dev/null; sleep 1; herdr pane run \"$pane\" claude {shellPrompt}; }",
+  },
+  { name: 'a tmux window', test: env => Boolean(env.tmux), command: 'tmux new-window -c {dir} -n {label} claude {prompt}' },
+  { name: 'a zellij tab', test: env => Boolean(env.zellij), command: 'zellij action new-tab --cwd {dir} --name {label} -- claude {prompt}' },
+  { name: 'a WezTerm tab', test: env => env.program === 'WezTerm', command: 'wezterm cli spawn --cwd {dir} -- claude {prompt}' },
+  { name: 'a kitty tab', test: env => Boolean(env.kittyWindow), command: 'kitty @ launch --type=tab --cwd {dir} claude {prompt}' },
+  // ponytail: always a new Rio instance, like Ghostty; flags written from Rio's docs
+  {
+    name: 'Rio',
+    test: env => env.program === 'rio',
+    command: 'open -na Rio --args --working-dir {dir} -e "${SHELL:-/bin/sh}" -lic \'exec claude "$0"\' {prompt}',
+  },
+  // ponytail: always a new Ghostty instance, since the macOS CLI cannot add a window to a running one; a login shell finds claude on PATH
+  {
+    name: 'Ghostty',
+    test: env => env.bundleId === 'com.mitchellh.ghostty' || env.program === 'ghostty',
+    command: 'open -na Ghostty --args --working-directory={dir} -e "${SHELL:-/bin/sh}" -lic \'exec claude "$0"\' {prompt}',
+  },
+  {
+    name: 'iTerm',
+    test: env => env.program === 'iTerm.app',
+    command: osascript(
+      'on run argv',
+      'tell application "iTerm"',
+      'activate',
+      'set w to (create window with default profile)',
+      'tell current session of w to write text "cd " & quoted form of item 1 of argv & " && claude " & quoted form of item 2 of argv',
+      'end tell',
+      'end run',
+    ),
+  },
+  {
+    name: 'Terminal',
+    test: () => true,
+    command: osascript(
+      'on run argv',
+      'tell application "Terminal"',
+      'activate',
+      'do script "cd " & quoted form of item 1 of argv & " && claude " & quoted form of item 2 of argv',
+      'end tell',
+      'end run',
+    ),
+  },
+]
