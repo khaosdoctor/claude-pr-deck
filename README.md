@@ -20,7 +20,7 @@ The pane scopes to the repository the session runs in, with a toggle for all rep
 
 ### Your move and card colours
 
-With the default `attention` card colours, a PR needs you when its next action is something you can do now: mark ready, fix CI, rebase, address comments, request a review or merge. Those cards get a border in their status colour and a bar on the left in their repo's colour, the same one as the repo badge. Cards that only wait on CI, a reviewer or another PR get a muted border and dimmed text. The status label in the top-right corner keeps its own colour.
+With the default `attention` card colours, a PR needs you when its next action is something you can do now: mark ready, fix CI, rebase, address comments, request a review or merge. Those cards get a border in their status colour and a bar on the left. When grouped by status, the bar takes the repo's colour, the same one as the repo badge; with grouping off, it takes the status colour. Cards that only wait on CI, a reviewer or another PR get a muted border and dimmed text. The status label in the top-right corner keeps its own colour.
 
 When `Pin "Your move" on top` is on, every PR that needs you is also listed in a ***● YOUR MOVE*** group above the repos. Inside it, PRs are grouped by repo under a coloured repo badge, the repo with the most urgent PR first, and by status when the grouping button is on `status`. Click the group title to collapse it.
 
