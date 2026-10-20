@@ -1,7 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
-import type { GroupBy, Pr, Snapshot, Stack } from '../types'
+import type { GroupBy, Pr, Snapshot, Stack, View } from '../types'
+import { configScreen } from './config-screen'
 import type { Action } from './prs'
 import { nextAction, toStacks, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
@@ -17,6 +18,7 @@ const collapsed = atom({ plugin: 'pr-deck', key: 'collapsed' } as const, [] as s
 // owner/repo, lowercase, as written in the config file
 const ignored = atom({ plugin: 'pr-deck', key: 'ignored' } as const, [] as string[])
 const showIgnored =atom({ plugin: 'pr-deck', key: 'showIgnored' } as const, false)
+const view = atom({ plugin: 'pr-deck', key: 'view' } as const, 'list' as View)
 // options come as string | number | boolean | string[]; the command and path ones are strings
 const str = (value: unknown) => (typeof value === 'string' ? value : '')
 const flipIn =(list: string[], item: string) => (list.includes(item) ? list.filter(x => x !== item) : [...list, item])
@@ -163,7 +165,13 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const ui = $.ui.resolve(e)
+    const { Box, Text, Button } = ui
+    // ponytail: mobile has no Input element, so it keeps the list
+    if ('Input' in ui && (await read($, view)) === 'config') {
+      const back = () => void update($, view, () => 'list')
+      return configScreen($, ui, { options, label, back, openIgnored: () => void openConfig($, options) })
+    }
     const snap = await read($, snapshot)
 
     if (snap === null) return <Text dimColor>Loading PRs…</Text>
@@ -373,7 +381,7 @@ export const register: Register = (on, options) => {
               }}
             />
             <Button key="refresh" label={label('↻ Refresh')} onPress={() => refresh($, options)} />
-            <Button key="config" label={label('⚙ Config')} onPress={() => openConfig($, options)} />
+            <Button key="config" label={label('⚙ Config')} onPress={() => update($, view, () => 'config')} />
           </Box>
         </Box>
         {!snap.project && <Text dimColor>no repo remote in this folder, showing all repos</Text>}

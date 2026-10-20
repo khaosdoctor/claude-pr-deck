@@ -144,9 +144,13 @@ Each command is a shell template run with `sh -c`. Placeholders in braces are re
 
   The herdr row needs `jq`. The kitty row needs `allow_remote_control yes` (or `listen_on`) in `kitty.conf`. Warp has no way to start a command in a new tab, so it falls through to Terminal; set your own command there. A non-empty command replaces all of this. In it, `{dir}` is the folder from above, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch and `{repo}` the `owner/repo` name.
 
+## Config screen
+
+***⚙ Config*** swaps the pane for a screen with every option above: toggles for on/off options, one button per value for pickers and a text field for the rest (press Enter to save). ***← Back*** returns to the list. ***⚙ Open in Claude /config*** runs the built-in `/config` menu, ***✎ Open file*** opens `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`) with the open config file command, and ***✎ open ignored list*** opens the file below.
+
 ## Config file
 
-***⚙ Config*** opens `~/.config/pr-deck.json`:
+`~/.config/pr-deck.json` holds the ignored repositories:
 
 ```json
 {

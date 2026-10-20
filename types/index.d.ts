@@ -40,6 +40,9 @@ export type Provider = {
 
 export type GroupBy = 'status' | 'none'
 
+// what the pane draws: the PR list or the config screen
+export type View = 'list' | 'config'
+
 export type Stack ={ repo: string; base: string; prs: Pr[] }
 
 // project: owner/repo of the session's git remote, absent outside a repo
@@ -47,6 +50,6 @@ export type Snapshot = { prs: Pr[]; updatedAt: number; project?: string; error?:
 
 declare module 'claude-code' {
   interface PluginState {
-    'pr-deck': { snapshot: Snapshot | null; showAll: boolean; groupBy: GroupBy; collapsed: string[]; ignored: string[]; showIgnored: boolean }
+    'pr-deck': { snapshot: Snapshot | null; showAll: boolean; groupBy: GroupBy; collapsed: string[]; ignored: string[]; showIgnored: boolean; view: View }
   }
 }
