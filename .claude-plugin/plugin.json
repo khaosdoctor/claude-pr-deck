@@ -59,7 +59,7 @@
     "summaryLength": {
       "type": "string",
       "title": "Summary length",
-      "description": "Most characters the summary line shows before it is cut with an ellipsis. The pane also cuts it at its own width.",
+      "description": "Most characters the summary shows before it is cut with an ellipsis. It wraps to the card width.",
       "default": "150",
       "options": ["30", "60", "100", "150", "200", "300"]
     },
