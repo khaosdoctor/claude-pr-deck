@@ -280,7 +280,8 @@ export const register: Register = (on, options) => {
       // ponytail: the bar is an absolute Box pinned top and bottom, so it spans the card height whatever it holds; a long column of ┃ is clipped to it
       const bar = hasBar && (
         <Box position="absolute" top={0} bottom={0} left={0} width={1} overflow="hidden">
-          <Text color={statusColor}>{'┃\n'.repeat(60)}</Text>
+          {/* the border already carries the status, so the bar carries the repo, matching its badge */}
+          <Text color={repoColor(pr.repo)}>{'┃\n'.repeat(60)}</Text>
         </Box>
       )
 
