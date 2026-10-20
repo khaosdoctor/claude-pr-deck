@@ -2,6 +2,9 @@
   "name": "pr-deck",
   "version": "0.2.0",
   "description": "Pane listing your open PRs across repos, grouped into stacks, with next-action buttons",
+  "author": { "name": "Lucas Santos", "url": "https://github.com/khaosdoctor" },
+  "homepage": "https://github.com/khaosdoctor/claude-pr-list-mod",
+  "repository": "https://github.com/khaosdoctor/claude-pr-list-mod",
   "types": "./types/index.d.ts",
   "userConfig": {
     "openOnStart": {

@@ -25,6 +25,8 @@ const SECTION_OF: Record<string, string> = {
   remoteCommand: 'Commands',
   cloneDir: 'Commands',
   newSessionCommand: 'Commands',
+  autoRename: 'Commands',
+  sessionName: 'Commands',
 }
 
 // The /config rows of this plugin, drawn in the pane. A save reloads the module with the new options.

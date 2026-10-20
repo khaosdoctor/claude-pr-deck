@@ -1,5 +1,6 @@
 {
   "name": "claude-pr-list-mod",
-  "owner": { "name": "khaosdoctor" },
+  "owner": { "name": "khaosdoctor", "url": "https://github.com/khaosdoctor" },
+  "metadata": { "description": "pr-deck: a Claude Code pane listing your open PRs across code hosts, with stacks and next-action buttons" },
   "plugins": [{ "name": "pr-deck", "source": "./" }]
 }
