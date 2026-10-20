@@ -85,7 +85,7 @@ const plain = (template: string, vars: Record<string, string>) => template.repla
 
 // the session name for a PR, e.g. pr-3109-worker; anything outside [A-Za-z0-9._-] becomes '-', empty turns naming off
 const sessionNameOf = (options: PluginOptions, pr: Pr) =>
-  plain(typeof options.sessionName === 'string' ? options.sessionName.trim() : '', { number: String(pr.number), repo: pr.repo })
+  options.autoRename === false ? '' : plain(typeof options.sessionName === 'string' ? options.sessionName.trim() : '', { number: String(pr.number), repo: pr.repo })
     .replace(/[^\w.-]+/g, '-')
 
 // where the PR's repo is cloned, undefined when cloneDir is blank

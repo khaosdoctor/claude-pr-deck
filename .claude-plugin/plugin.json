@@ -141,6 +141,12 @@
       "description": "Opens a new Claude session for a PR. {claude} is claude with the session name flag, {dir} the clone folder, {prompt} the first prompt and {label} the PR name. Empty (the default) picks automatically: a herdr, tmux, zellij, WezTerm or kitty tab, else Ghostty, iTerm or Terminal.",
       "default": ""
     },
+    "autoRename": {
+      "type": "boolean",
+      "title": "Auto rename sessions",
+      "description": "Name the session that New session opens or Switch here moves, using Session name.",
+      "default": true
+    },
     "sessionName": {
       "type": "string",
       "title": "Session name",
