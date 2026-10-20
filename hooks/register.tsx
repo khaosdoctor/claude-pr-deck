@@ -83,6 +83,11 @@ async function refresh($: EngineInterface, options: PluginOptions) {
 // cloneDir placeholders are plain text, not shell-quoted like the command ones
 const plain = (template: string, vars: Record<string, string>) => template.replace(/\{(\w+)\}/g, (match, name: string) => vars[name] ?? match)
 
+// the session name for a PR, e.g. pr-3109-worker; anything outside [A-Za-z0-9._-] becomes '-', empty turns naming off
+const sessionNameOf = (options: PluginOptions, pr: Pr) =>
+  plain(typeof options.sessionName === 'string' ? options.sessionName.trim() : '', { number: String(pr.number), repo: pr.repo })
+    .replace(/[^\w.-]+/g, '-')
+
 // where the PR's repo is cloned, undefined when cloneDir is blank
 async function cloneDirOf($: EngineInterface, options: PluginOptions, pr: Pr) {
   const template = str(options.cloneDir).trim()
@@ -208,6 +213,8 @@ export const register: Register = (on, options) => {
     const submit = (text: string) => void $.prompt.submit({ text })
     const open = (url: string) => void run($, str(options.openCommand), { url })
     const switchHere = async (pr: Pr) => {
+      const name = sessionNameOf(options, pr)
+      if (name) await $.command.run({ command: 'rename', args: name }).catch(() => $.ui.toast(`Could not rename the session to ${name}`))
       const dir = await cloneDirOf($, options, pr)
       const where = dir ? `it should be at ${dir}` : 'look in nearby folders'
       submit(
@@ -227,8 +234,11 @@ export const register: Register = (on, options) => {
       }
       const custom = str(options.newSessionCommand).trim()
       const terminal = TERMINALS.find(t => t.test(env))
-      const vars = { dir, prompt, shellPrompt: quote(prompt), label: `#${pr.number} ${pr.repo}`, url: pr.url, branch: pr.head, repo: pr.fullName }
-      const result = await run($, custom || (terminal?.command ?? ''), vars)
+      const name = sessionNameOf(options, pr)
+      const vars = { dir, prompt, shellPrompt: quote(prompt), label: `#${pr.number} ${pr.repo}`, url: pr.url, branch: pr.head, repo: pr.fullName, name }
+      // {claude} goes in unquoted: the name is limited to safe characters, so it survives any shell or AppleScript layer
+      const template = (custom || (terminal?.command ?? '')).replaceAll('{claude}', name ? `claude -n ${name}` : 'claude')
+      const result = await run($, template, vars)
       const where = custom ? 'a new session' : terminal?.name
       $.ui.toast(result.exitCode === 0 ? `Opened #${pr.number} in ${where}` : short(result.stderr.trim() || `new session command exited ${result.exitCode}`, 200))
     }

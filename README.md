@@ -115,6 +115,7 @@ Set these in `/config` under pr-deck.
 | Current repo command | `git remote get-url origin` |
 | Local clone folder | empty |
 | New session command | empty, which picks a terminal automatically |
+| Session name | `pr-{number}-worker` |
 
 Each command is a shell template run with `sh -c`. Placeholders in braces are replaced with the value wrapped in single quotes, so a URL or prompt with spaces or quotes is safe to pass as one argument. Do not add your own quotes around a placeholder.
 
@@ -123,7 +124,10 @@ Each command is a shell template run with `sh -c`. Placeholders in braces are re
 | Open URL command | `{url}` |
 | Open config file command | `{path}` |
 | Current repo command | none |
-| New session command | `{dir}`, `{prompt}`, `{label}`, `{url}`, `{branch}`, `{repo}` |
+| New session command | `{claude}`, `{dir}`, `{prompt}`, `{label}`, `{url}`, `{branch}`, `{repo}`, `{name}` |
+| Session name | `{number}`, `{repo}`, filled as plain text |
+
+- **Session name**: ***⧉ New session*** starts `claude -n <name>`, and ***⎇ Switch here*** runs `/rename <name>` on the current session. Characters other than letters, digits, `.`, `_` and `-` become `-`. Empty turns naming off. In your own new session command, `{claude}` is `claude` with that name flag.
 
 - **Current repo command**: prints the remote URL of the session's repo. The pane uses it to scope to that repo.
 - **Local clone folder**: where a repo is cloned, for example `~/code/{host}/{owner}/{repo}`. `{host}`, `{owner}` and `{repo}` are filled in as plain text, and a leading `~` becomes your home folder. ***⧉ New session*** starts there, and ***⎇ Switch here*** tells the session to look there first. When empty, ***⧉ New session*** starts in the session's current folder and ***⎇ Switch here*** asks the session to look in nearby folders.

@@ -138,8 +138,14 @@
     "newSessionCommand": {
       "type": "string",
       "title": "New session command",
-      "description": "Opens a new Claude session for a PR. {dir} is the clone folder, {prompt} the first prompt and {label} the PR name. Empty (the default) picks automatically: a herdr, tmux, zellij, WezTerm or kitty tab, else Ghostty, iTerm or Terminal.",
+      "description": "Opens a new Claude session for a PR. {claude} is claude with the session name flag, {dir} the clone folder, {prompt} the first prompt and {label} the PR name. Empty (the default) picks automatically: a herdr, tmux, zellij, WezTerm or kitty tab, else Ghostty, iTerm or Terminal.",
       "default": ""
+    },
+    "sessionName": {
+      "type": "string",
+      "title": "Session name",
+      "description": "Name given to the session that New session opens or Switch here moves. {number} is the PR number and {repo} the repo name. Empty leaves sessions unnamed.",
+      "default": "pr-{number}-worker"
     }
   }
 }
