@@ -1,6 +1,145 @@
 {
   "name": "pr-deck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pane listing your open PRs across repos, grouped into stacks, with next-action buttons",
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "startCollapsed": {
+      "type": "boolean",
+      "title": "Start collapsed",
+      "description": "PR cards open folded to their title line. Click the arrow to unfold one.",
+      "default": false
+    },
+    "alwaysShowAll": {
+      "type": "boolean",
+      "title": "Always show all projects",
+      "description": "Start with PRs from every repo instead of only the current folder's repo.",
+      "default": false
+    },
+    "cardColors": {
+      "type": "string",
+      "title": "Card colors",
+      "description": "attention: cards that need you are bright with a coloured bar, the rest are dimmed. status: border follows the PR state. repo: one colour per repo. random: one colour per PR.",
+      "default": "attention",
+      "options": ["attention", "status", "repo", "random"]
+    },
+    "pinYourMove": {
+      "type": "boolean",
+      "title": "Pin \"Your move\" on top",
+      "description": "PRs waiting on you are listed in a group above the repos.",
+      "default": true
+    },
+    "buttonStyle": {
+      "type": "string",
+      "title": "Button labels",
+      "description": "Show icons, text or both on buttons. The next-action button always keeps its text.",
+      "default": "both",
+      "options": ["both", "icons", "text"]
+    },
+    "defaultGroup": {
+      "type": "string",
+      "title": "Default grouping",
+      "description": "How PRs inside a repo are grouped when the pane opens.",
+      "default": "status",
+      "options": ["status", "none"]
+    },
+    "refreshMinutes": {
+      "type": "string",
+      "title": "Refresh every (minutes)",
+      "description": "How often the pane fetches PRs.",
+      "default": "2",
+      "options": ["1", "2", "5", "10", "15", "30"]
+    },
+    "showSummary": {
+      "type": "boolean",
+      "title": "Show summary",
+      "description": "A one-line summary from the PR body under each title.",
+      "default": true
+    },
+    "showFableButton": {
+      "type": "boolean",
+      "title": "Show Fable review button",
+      "description": "A button that asks the session to run a review subagent and report back.",
+      "default": true
+    },
+    "showCopilotPass": {
+      "type": "boolean",
+      "title": "Offer Copilot pass",
+      "description": "GitHub only. When a PR is green and idle, the work button requests a Copilot review and works its comments.",
+      "default": true
+    },
+    "providers": {
+      "type": "string",
+      "title": "Code hosts",
+      "description": "Comma-separated list of hosts to fetch PRs from: github, gitlab, gitea, azdo.",
+      "default": "github"
+    },
+    "tracker": {
+      "type": "string",
+      "title": "Issue tracker",
+      "description": "Where ticket keys found in PR titles and branches link to.",
+      "default": "jira",
+      "options": ["jira", "linear", "none"]
+    },
+    "trackerUrl": {
+      "type": "string",
+      "title": "Issue tracker URL",
+      "description": "Base URL the ticket key is appended to, e.g. https://yourcompany.atlassian.net/browse/ or https://linear.app/yourteam/issue/. Empty shows the key as text.",
+      "default": ""
+    },
+    "githubCommand": {
+      "type": "string",
+      "title": "GitHub fetch command",
+      "description": "Shell command that prints the GitHub GraphQL response. Empty uses the built-in gh api graphql call; {query} is the query.",
+      "default": ""
+    },
+    "gitlabCommand": {
+      "type": "string",
+      "title": "GitLab fetch command",
+      "description": "Shell command that prints the GitLab GraphQL response. Empty uses the built-in glab api graphql call; {query} is the query.",
+      "default": ""
+    },
+    "giteaCommand": {
+      "type": "string",
+      "title": "Gitea/Forgejo fetch command",
+      "description": "Shell command that prints the Gitea JSON response. Empty uses the built-in tea api call.",
+      "default": ""
+    },
+    "azdoCommand": {
+      "type": "string",
+      "title": "Azure DevOps fetch command",
+      "description": "Shell command that prints the Azure DevOps PR list JSON. Empty uses the built-in az repos pr list call.",
+      "default": ""
+    },
+    "openCommand": {
+      "type": "string",
+      "title": "Open URL command",
+      "description": "Opens links in the browser; {url} is the link.",
+      "default": "open {url}"
+    },
+    "editorCommand": {
+      "type": "string",
+      "title": "Open config file command",
+      "description": "Opens the config file; {path} is its path.",
+      "default": "open -t {path}"
+    },
+    "remoteCommand": {
+      "type": "string",
+      "title": "Current repo command",
+      "description": "Prints the remote URL of the session's repo, used to scope the pane.",
+      "default": "git remote get-url origin"
+    },
+    "cloneDir": {
+      "type": "string",
+      "title": "Local clone folder",
+      "description": "Where a repo's clone lives, used by the new session button. {host}, {owner} and {repo} are filled in, e.g. ~/code/{host}/{owner}/{repo}. Empty starts in the current folder.",
+      "default": ""
+    },
+    "newSessionCommand": {
+      "type": "string",
+      "title": "New session command",
+      "description": "Opens a new Claude session for a PR. {dir} is the clone folder and {prompt} the first prompt. The default opens macOS Terminal.",
+      "default": "osascript -e 'on run argv' -e 'tell application \"Terminal\" to do script \"cd \" & quoted form of item 1 of argv & \" && claude \" & quoted form of item 2 of argv' -e 'end run' {dir} {prompt}"
+    }
+  }
 }
