@@ -158,6 +158,8 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane' })
     void refresh($, options)
     $.clock.every(refreshMs, () => void refresh($, options))
+    // ponytail: session.start also fires on a reload, so this reopens a pane the person closed then; unfocused so the prompt keeps the cursor
+    if (options.openOnStart === true) void $.ui.open({ id: PANE, title: 'Pull requests' })
 
     return next(e)
   })

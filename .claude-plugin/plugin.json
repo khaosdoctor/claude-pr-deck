@@ -4,6 +4,12 @@
   "description": "Pane listing your open PRs across repos, grouped into stacks, with next-action buttons",
   "types": "./types/index.d.ts",
   "userConfig": {
+    "openOnStart": {
+      "type": "boolean",
+      "title": "Open on start",
+      "description": "Open the PR pane when a session starts, without taking focus from the prompt.",
+      "default": false
+    },
     "startCollapsed": {
       "type": "boolean",
       "title": "Start collapsed",

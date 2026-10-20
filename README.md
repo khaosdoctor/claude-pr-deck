@@ -2,11 +2,15 @@
 
 A Claude Code mod that lists your open pull requests in a side pane. PRs are grouped by repository, and stacked PRs (a PR whose base is another of your PR branches) are drawn as a chain. It reads PRs from GitHub, GitLab, Gitea/Forgejo and Azure DevOps.
 
-![pr-deck pane listing PRs from three repos, with a stack of three PRs](docs/pane.jpg)
+![pr-deck pane listing PRs from three repos, with YOUR MOVE grouped by repo](docs/pane-all.jpg)
 
 Each card shows the PR number, title and state, a one-line summary taken from the PR body, and buttons to copy the link, open it in the browser or copy the PR number. The arrow before the number folds the card down to its title line.
 
-![Folded cards next to an open one](docs/folded.jpg)
+![Folded cards and a folded stack](docs/folded.jpg)
+
+Scoped to the session's repo, the pane shows that repo alone, with a stack of three PRs:
+
+![pr-deck pane scoped to one repo, with a stack of three PRs](docs/pane.jpg)
 
 Below CI, review and diff stats, each card has an action row:
 
@@ -71,6 +75,7 @@ Set these in `/config` under pr-deck.
 
 | Option | Values | Default |
 | --- | --- | --- |
+| Open on start | on, off | off |
 | Start collapsed | on, off | off |
 | Always show all projects | on, off | off |
 | Card colors | `attention`, `status`, `repo`, `random` | `attention` |
@@ -152,7 +157,11 @@ Each command is a shell template run with `sh -c`. Placeholders in braces are re
 
 ## Config screen
 
-***⚙ Config*** swaps the pane for a screen with every option above: toggles for on/off options, one button per value for pickers and a text field for the rest (press Enter to save). ***← Back*** returns to the list. ***⚙ Open in Claude /config*** runs the built-in `/config` menu, ***✎ Open file*** opens `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`) with the open config file command, and ***✎ open ignored list*** opens the file below.
+***⚙ Config*** swaps the pane for a screen with every option above: toggles for on/off options and one button per value for pickers, saved on press. Text options show their value with links to edit them in `/config` or in the settings file. ***← Back*** returns to the list.
+
+![The config screen](docs/config.jpg)
+
+ ***⚙ Open in Claude /config*** runs the built-in `/config` menu, ***✎ Open file*** opens `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`) with the open config file command, and ***✎ open ignored list*** opens the file below.
 
 ## Config file
 
