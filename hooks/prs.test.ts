@@ -13,6 +13,10 @@ test('summary skips short heading lines and caps at 30 chars', () => {
   expect(summaryOf('Summary\n\nAdds a pane that lists every open PR')).toBe('Adds a pane that lists every open PR')
   expect(summaryOf('Fix login bug')).toBe('Fix login bug')
   expect(summaryOf('')).toBe('')
+  expect(
+    summaryOf('[ABC-196](https://x.test/ABC-196), part of [ABC-120](https://x.test/ABC-120).\n\n## Why\nThis moves the apps onto `forRoot()` and the shared logger. Errors log once now.'),
+  ).toBe('This moves the apps onto forRoot() and the shared logger.')
+  expect(summaryOf('ABC-196, part of ABC-120.\nAdds the drawer to every page')).toBe('Adds the drawer to every page')
 })
 
 test('reads owner/repo from ssh and https remotes', () => {

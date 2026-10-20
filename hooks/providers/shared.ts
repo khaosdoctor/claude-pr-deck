@@ -5,11 +5,26 @@ export function ticketKey(text: string): string | undefined {
   return text.match(TICKET_KEY)?.[0].toUpperCase()
 }
 
-// ponytail: first body line with 3+ words skips template headings like "Summary"; a model summary would read better but costs a call per PR
-// parsers keep the whole line; the pane cuts it to the summaryLength option
+const TICKET_KEYS = new RegExp(TICKET_KEY.source, 'gi')
+// markdown links keep their text; emphasis, code ticks and list or quote markers go
+const plainText = (line: string) =>
+  line
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`]+/g, '')
+    .replace(/^\s*(?:[-*+>]|\d+\.)\s+/, '')
+    .trim()
+
+// ponytail: the first sentence of the first prose line; a model summary would read better but costs a call per PR.
+// Skips headings ("## Summary"), fences, tables, link references and ticket-only lines ("ABC-1, part of ABC-2.").
+// Parsers keep the whole sentence; the pane cuts it to the summaryLength option.
 export function summaryOf(body: string, max = Infinity): string {
-  const line = body.split('\n').map(l => l.trim()).find(l => l.split(/\s+/).length >= 3) ?? ''
-  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line
+  const isProse = (raw: string) => {
+    if (/^\s*(?:#|```|\||\[[^\]]+\]:)/.test(raw)) return false
+    return plainText(raw).replace(TICKET_KEYS, '').split(/\s+/).filter(word => /\w{2,}/.test(word)).length >= 3
+  }
+  const line = plainText(body.split('\n').find(isProse) ?? '')
+  const sentence = line.match(/^.+?[.!?](?=\s|$)/)?.[0] ?? line
+  return sentence.length > max ? `${sentence.slice(0, max - 1).trimEnd()}…` : sentence
 }
 
 // hostname of an http(s) URL; the engine has no URL global
