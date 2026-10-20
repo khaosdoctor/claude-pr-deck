@@ -6,7 +6,8 @@ export function ticketKey(text: string): string | undefined {
 }
 
 // ponytail: first body line with 3+ words skips template headings like "Summary"; a model summary would read better but costs a call per PR
-export function summaryOf(body: string, max = 30): string {
+// parsers keep the whole line; the pane cuts it to the summaryLength option
+export function summaryOf(body: string, max = Infinity): string {
   const line = body.split('\n').map(l => l.trim()).find(l => l.split(/\s+/).length >= 3) ?? ''
   return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line
 }

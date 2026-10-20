@@ -9,7 +9,8 @@ import { github } from './providers/github'
 import { gitlab } from './providers/gitlab'
 
 test('summary skips short heading lines and caps at 30 chars', () => {
-  expect(summaryOf('Summary\n\nAdds a pane that lists every open PR')).toBe('Adds a pane that lists every…')
+  expect(summaryOf('Summary\n\nAdds a pane that lists every open PR', 30)).toBe('Adds a pane that lists every…')
+  expect(summaryOf('Summary\n\nAdds a pane that lists every open PR')).toBe('Adds a pane that lists every open PR')
   expect(summaryOf('Fix login bug')).toBe('Fix login bug')
   expect(summaryOf('')).toBe('')
 })

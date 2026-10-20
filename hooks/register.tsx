@@ -4,7 +4,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { GroupBy, Pr, Snapshot, Stack, View } from '../types'
 import { configScreen } from './config-screen'
 import type { Action } from './prs'
-import { nextAction, toStacks, workAction } from './prs'
+import { nextAction, summaryOf, toStacks, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
 import { TERMINALS } from './terminals'
@@ -308,7 +308,7 @@ export const register: Register = (on, options) => {
         <Box key={pr.url} flexDirection="column" borderStyle="round" borderColor={color} paddingLeft={hasBar ? 2 : 1} paddingRight={1}>
           {bar}
           {titleRow}
-          {options.showSummary !== false && pr.summary && <Text dimColor wrap="truncate-end">{pr.summary}</Text>}
+          {options.showSummary !== false && pr.summary && <Text dimColor wrap="truncate-end">{summaryOf(pr.summary, Number(options.summaryLength) || 150)}</Text>}
           <Box flexWrap="wrap" columnGap={1}>
             <Button key={key('copy-url')} label={label('⧉ copy link')} onPress={press => void $.ui.copy({ text: pr.url, surface: press.surface })} />
             <Button key={key('browser')} label={label('↗ open')} onPress={() => open(pr.url)} />

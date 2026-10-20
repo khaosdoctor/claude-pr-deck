@@ -79,6 +79,7 @@ Set these in `/config` under pr-deck.
 | Default grouping | `status`, `none` | `status` |
 | Refresh every (minutes) | `1`, `2`, `5`, `10`, `15`, `30` | `2` |
 | Show summary | on, off | on |
+| Summary length | `30`, `60`, `100`, `150`, `200`, `300` | `150` |
 | Show Fable review button | on, off | on |
 | Offer Copilot pass | on, off | on |
 
@@ -87,7 +88,7 @@ Set these in `/config` under pr-deck.
 - **Card colors**: `attention` is described under Your move and card colours. `status` colours the border by PR state, `repo` uses one colour per repository, and `random` gives each PR its own. The status label keeps its state colour in every mode. The colour button in the pane header cycles through the four modes and saves the choice.
 - **Button labels**: the next-action button keeps its text in `icons` mode, since its arrow alone does not say which action it is.
 - **Default grouping**: how PRs inside a repo are grouped when the pane opens. `status` groups by state, `none` lists them flat. The grouping button toggles it for the session.
-- **Show summary**: a one-line summary taken from the PR body, under each title.
+- **Show summary**: a one-line summary taken from the PR body, under each title. **Summary length** caps it in characters; the pane still cuts it at its own width.
 - **Offer Copilot pass**: GitHub only. Turn it off to keep ***Work on it*** as the work button on green, idle PRs.
 
 ### Code hosts and trackers

@@ -56,6 +56,13 @@
       "description": "A one-line summary from the PR body under each title.",
       "default": true
     },
+    "summaryLength": {
+      "type": "string",
+      "title": "Summary length",
+      "description": "Most characters the summary line shows before it is cut with an ellipsis. The pane also cuts it at its own width.",
+      "default": "150",
+      "options": ["30", "60", "100", "150", "200", "300"]
+    },
     "showFableButton": {
       "type": "boolean",
       "title": "Show Fable review button",
