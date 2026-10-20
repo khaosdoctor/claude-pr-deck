@@ -215,6 +215,7 @@ export const register: Register = (on, options) => {
         tmux: await $.env.get('TMUX'),
         zellij: await $.env.get('ZELLIJ'),
         kittyWindow: await $.env.get('KITTY_WINDOW_ID'),
+        alacrittyWindow: await $.env.get('ALACRITTY_WINDOW_ID'),
       }
       const custom = str(options.newSessionCommand).trim()
       const terminal = TERMINALS.find(t => t.test(env))

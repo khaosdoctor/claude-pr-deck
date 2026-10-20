@@ -136,12 +136,13 @@ Each command is a shell template run with `sh -c`. Placeholders in braces are re
   | 3 | zellij tab | `ZELLIJ` is set |
   | 4 | WezTerm tab | `TERM_PROGRAM` is `WezTerm` |
   | 5 | kitty tab | `KITTY_WINDOW_ID` is set |
-  | 6 | Rio window | `TERM_PROGRAM` is `rio` |
-  | 7 | Ghostty window | app is Ghostty |
-  | 8 | iTerm window | `TERM_PROGRAM` is `iTerm.app` |
-  | 9 | Terminal window | anything else |
+  | 6 | Alacritty window | `ALACRITTY_WINDOW_ID` is set |
+  | 7 | Rio window | `TERM_PROGRAM` is `rio` |
+  | 8 | Ghostty window | app is Ghostty |
+  | 9 | iTerm window | `TERM_PROGRAM` is `iTerm.app` |
+  | 10 | Terminal window | anything else |
 
-  The herdr row needs `jq`. A non-empty command replaces all of this. In it, `{dir}` is the folder from above, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch and `{repo}` the `owner/repo` name. For example, `alacritty --working-directory {dir} -e claude {prompt}` opens an Alacritty window.
+  The herdr row needs `jq`. The kitty row needs `allow_remote_control yes` (or `listen_on`) in `kitty.conf`. Warp has no way to start a command in a new tab, so it falls through to Terminal; set your own command there. A non-empty command replaces all of this. In it, `{dir}` is the folder from above, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch and `{repo}` the `owner/repo` name.
 
 ## Config file
 

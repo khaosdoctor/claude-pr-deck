@@ -1,7 +1,7 @@
 import { quote } from './run'
 
 // Where the session itself runs, read from its environment by register.tsx.
-export type TerminalEnv = { program?: string; bundleId?: string; tmux?: string; zellij?: string; kittyWindow?: string }
+export type TerminalEnv = { program?: string; bundleId?: string; tmux?: string; zellij?: string; kittyWindow?: string; alacrittyWindow?: string }
 export type Terminal = { name: string; test: (env: TerminalEnv) => boolean; command: string }
 
 // Shell templates for opening a new Claude session, filled by run().
@@ -21,7 +21,14 @@ export const TERMINALS: Terminal[] = [
   { name: 'a tmux window', test: env => Boolean(env.tmux), command: 'tmux new-window -c {dir} -n {label} claude {prompt}' },
   { name: 'a zellij tab', test: env => Boolean(env.zellij), command: 'zellij action new-tab --cwd {dir} --name {label} -- claude {prompt}' },
   { name: 'a WezTerm tab', test: env => env.program === 'WezTerm', command: 'wezterm cli spawn --cwd {dir} -- claude {prompt}' },
-  { name: 'a kitty tab', test: env => Boolean(env.kittyWindow), command: 'kitty @ launch --type=tab --cwd {dir} claude {prompt}' },
+  // kitty needs allow_remote_control (or listen_on) in kitty.conf; without it the toast shows kitty's error
+  { name: 'a kitty tab', test: env => Boolean(env.kittyWindow), command: 'kitty @ launch --type=tab --cwd={dir} --tab-title={label} claude {prompt}' },
+  // ponytail: Alacritty has no tabs, so a new window through its IPC socket
+  {
+    name: 'an Alacritty window',
+    test: env => Boolean(env.alacrittyWindow),
+    command: 'alacritty msg create-window --working-directory {dir} -e claude {prompt}',
+  },
   // ponytail: always a new Rio instance, like Ghostty; flags written from Rio's docs
   {
     name: 'Rio',
