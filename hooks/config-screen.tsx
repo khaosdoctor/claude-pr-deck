@@ -29,7 +29,7 @@ const SECTION_OF: Record<string, string> = {
 
 // The /config rows of this plugin, drawn in the pane. A save reloads the module with the new options.
 // a function declaration, so `claude plugin validate` can follow `$` through the import
-export async function configScreen($: EngineInterface, { Box, Text, Button, Input }: Elements['terminal' | 'desktop' | 'vscode'], { options, label, back, openIgnored }: Deps) {
+export async function configScreen($: EngineInterface, { Box, Text, Button }: Elements['terminal' | 'desktop' | 'vscode'], { options, label, back, openIgnored }: Deps) {
   const prefix = `${$.plugin.name}.`
   const rows = (await $.config.list()).filter(row => row.key.startsWith(prefix))
 
@@ -60,7 +60,14 @@ export async function configScreen($: EngineInterface, { Box, Text, Button, Inpu
         </Box>
       )
     }
-    return <Input key={row.key} value={String(row.value)} placeholder="empty" onSubmit={value => void save(row, row.kind === 'number' ? Number(value) : value)} />
+    // ponytail: the pane's Input does not take typing, so text values are edited in /config or the settings file
+    return (
+      <Box flexWrap="wrap" columnGap={1}>
+        <Text wrap="truncate-end">{String(row.value) || <Text dimColor>empty</Text>}</Text>
+        <Button key={`${row.key}:claude`} plain label={label('⚙ edit in /config')} onPress={() => void openInClaude()} />
+        <Button key={`${row.key}:file`} plain label={label('✎ edit in file')} onPress={() => void openSettings()} />
+      </Box>
+    )
   }
 
   return (
