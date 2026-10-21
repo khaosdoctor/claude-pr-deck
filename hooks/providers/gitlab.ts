@@ -46,6 +46,8 @@ function toPr(node: any): Pr {
     checksPassed: ci === 'SUCCESS' ? 1 : 0,
     checksTotal: node.headPipeline ? 1 : 0,
     reviewRequests: node.reviewers.nodes.length,
+    // ponytail: permission unknown, keep offering the review request
+    canRequestReview: true,
     hasCopilot: false,
     unresolved: node.discussions.nodes.filter((d: any) => d.resolvable && !d.resolved).length,
     changedFiles: Number(stats?.fileCount ?? 0),

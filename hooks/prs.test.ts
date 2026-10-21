@@ -51,7 +51,7 @@ test('parses a GitHub GraphQL node', () => {
       number: 7, title: 'ABC-12 add thing', bodyText: 'Adds the thing to the list', url: 'https://github.com/Acme/Api/pull/7',
       isDraft: false, headRefName: 'feat/x', baseRefName: 'main', reviewDecision: null, mergeable: 'MERGEABLE',
       changedFiles: 2, additions: 5, deletions: 1,
-      repository: { name: 'Api', nameWithOwner: 'Acme/Api', defaultBranchRef: { name: 'main' } },
+      repository: { name: 'Api', nameWithOwner: 'Acme/Api', viewerPermission: 'READ', defaultBranchRef: { name: 'main' } },
       reviewRequests: { totalCount: 1, nodes: [{ requestedReviewer: { login: 'copilot-pull-request-reviewer' } }] },
       reviews: { nodes: [] },
       reviewThreads: { nodes: [{ isResolved: false }, { isResolved: true }] },
@@ -62,7 +62,7 @@ test('parses a GitHub GraphQL node', () => {
 
   expect(parsed).toMatchObject({
     provider: 'github', host: 'github.com', fullName: 'acme/api', ci: 'SUCCESS', checksPassed: 1,
-    unresolved: 1, hasCopilot: true, ticket: 'ABC-12', review: 'NONE',
+    unresolved: 1, hasCopilot: true, ticket: 'ABC-12', review: 'NONE', canRequestReview: false,
   })
 })
 
@@ -133,6 +133,7 @@ const pr = (over: Partial<Pr>): Pr => ({
   checksPassed: 1,
   checksTotal: 1,
   reviewRequests: 1,
+  canRequestReview: true,
   hasCopilot: false,
   unresolved: 0,
   changedFiles: 1,
@@ -157,6 +158,7 @@ test('next action follows CI, review and stack position', () => {
   expect(nextAction(pr({ ci: 'FAILURE' }), true).label).toBe('Fix CI')
   expect(nextAction(pr({ unresolved: 2 }), true).label).toBe('Address comments')
   expect(nextAction(pr({ reviewRequests: 0 }), true).label).toBe('Request a review')
+  expect(nextAction(pr({ reviewRequests: 0, canRequestReview: false }), true)).toEqual({ label: 'Wait for maintainers' })
   expect(nextAction(pr({ review: 'APPROVED' }), true).label).toBe('Merge')
   expect(nextAction(pr({ review: 'APPROVED' }), false).label).toBe('Wait for stack below')
   expect(nextAction(pr({}), true).prompt).toBeUndefined()

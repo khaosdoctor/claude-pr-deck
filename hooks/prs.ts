@@ -76,6 +76,7 @@ export function nextAction(pr: Pr, isBottom: boolean): Action {
   }
   if (pr.ci === 'PENDING' || pr.ci === 'EXPECTED') return { label: 'Wait for CI' }
   if (pr.reviewRequests === 0) {
+    if (!pr.canRequestReview) return { label: 'Wait for maintainers' }
     return { label: 'Request a review', prompt: `Request reviews on ${ref} with ${provider.cli} from the right people or team based on CODEOWNERS and recent history.` }
   }
 

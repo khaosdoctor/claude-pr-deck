@@ -27,6 +27,8 @@ function toPr(node: any): Pr {
     checksPassed: 0,
     checksTotal: 0,
     reviewRequests: (node.requested_reviewers ?? []).length,
+    // ponytail: permission unknown, keep offering the review request
+    canRequestReview: true,
     hasCopilot: false,
     unresolved: 0,
     changedFiles: node.changed_files ?? 0,

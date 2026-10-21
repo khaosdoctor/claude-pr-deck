@@ -38,6 +38,8 @@ function toPr(node: any): Pr {
     checksPassed: 0,
     checksTotal: 0,
     reviewRequests: votes.filter(vote => vote === 0).length,
+    // ponytail: permission unknown, keep offering the review request
+    canRequestReview: true,
     hasCopilot: false,
     unresolved: 0,
     changedFiles: 0,

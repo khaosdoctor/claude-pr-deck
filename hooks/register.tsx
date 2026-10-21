@@ -17,6 +17,8 @@ const showAll = atom({ plugin: 'pr-deck', key: 'showAll' } as const, false)
 const collapsed = atom({ plugin: 'pr-deck', key: 'collapsed' } as const, [] as string[])
 // owner/repo, lowercase, as written in the config file
 const ignored = atom({ plugin: 'pr-deck', key: 'ignored' } as const, [] as string[])
+// status the person picked for a PR url, saved in the config file; a PR with no entry shows its own status
+const overrides = atom({ plugin: 'pr-deck', key: 'overrides' } as const, {} as Record<string, string>)
 const showIgnored =atom({ plugin: 'pr-deck', key: 'showIgnored' } as const, false)
 const view = atom({ plugin: 'pr-deck', key: 'view' } as const, 'list' as View)
 // options come as string | number | boolean | string[]; the command and path ones are strings
@@ -33,6 +35,11 @@ const STATUS_COLOR: Record<string, string> = {
   '✓ approved': 'success',
 }
 
+// the statuses a move button cycles through after auto, in order
+const MOVES = ['○ waiting', '● needs you', '✓ approved']
+// undefined past the last one means back to auto
+const nextMove = (current: string | undefined) => MOVES[MOVES.indexOf(current ?? '') + 1]
+
 const configPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? ''}/.config/pr-deck.json`
 
 // The config file is the source of truth; edits to it apply on the next refresh.
@@ -40,18 +47,31 @@ async function loadConfig($: EngineInterface) {
   const text = await $.fs.read(await configPath($)).catch(() => '{}')
   const parsed = (() => {
     try {
-      return JSON.parse(text) as { ignored?: unknown }
+      return JSON.parse(text) as { ignored?: unknown; overrides?: unknown }
     } catch {
       return {}
     }
   })()
   const list = Array.isArray(parsed.ignored) ? parsed.ignored.filter((x): x is string => typeof x === 'string') : []
   await update($, ignored, () => list.map(x => x.toLowerCase()))
+  const stored = typeof parsed.overrides === 'object' && parsed.overrides !== null ? Object.entries(parsed.overrides) : []
+  await update($, overrides, () => Object.fromEntries(stored.filter(([, status]) => MOVES.includes(status))))
 }
 
 async function saveConfig($: EngineInterface) {
-  const config = { ignored: await read($, ignored) }
+  const snap = await read($, snapshot)
+  const urls = new Set(snap?.prs.map(pr => pr.url))
+  // overrides of PRs that are gone are dropped; before the first fetch there is nothing to compare with
+  const kept = Object.entries(await read($, overrides)).filter(([url]) => !snap || urls.has(url))
+  const config = { ignored: await read($, ignored), overrides: Object.fromEntries(kept) }
   await $.fs.write(await configPath($), `${JSON.stringify(config, null, 2)}\n`)
+}
+
+// undefined puts the PR back to auto
+async function saveOverride($: EngineInterface, url: string, status: string | undefined) {
+  const rest = Object.entries(await read($, overrides)).filter(([key]) => key !== url)
+  await update($, overrides, () => Object.fromEntries(status ? [...rest, [url, status]] : rest))
+  await saveConfig($)
 }
 
 async function saveIgnored($: EngineInterface, list: string[]) {
@@ -148,7 +168,6 @@ export const register: Register = (on, options) => {
     if (isAttention) return needsMe ? status : 'subtle'
     return status
   }
-  const needsYouAt = (pr: Pr, i: number) => Boolean(nextAction(pr, i === 0).prompt)
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane' })
@@ -189,7 +208,16 @@ export const register: Register = (on, options) => {
     const toggle = () => update($, showAll, value => !value)
     const stacks = toStacks(prs)
     const rank = (key: string) => STATUS_ORDER.indexOf(key)
-    const statusOf = (pr: Pr, i: number) => tone(pr, nextAction(pr, i === 0)).status
+    const manual = await read($, overrides)
+    // the one place a PR's status, colour and "needs you" come from: the person's pick when there is one, else its own
+    const statusFor = (pr: Pr, i: number) => {
+      const action = nextAction(pr, i === 0)
+      const picked = manual[pr.url]
+      if (!picked) return { ...tone(pr, action), needsMe: Boolean(action.prompt), isManual: false }
+      return { color: STATUS_COLOR[picked] ?? 'suggestion', status: picked, needsMe: picked === '● needs you', isManual: true }
+    }
+    const needsYouAt = (pr: Pr, i: number) => statusFor(pr, i).needsMe
+    const statusOf = (pr: Pr, i: number) => statusFor(pr, i).status
     const moves = stacks
       .flatMap(stack => stack.prs.map((pr, i) => ({ pr, i })).filter(({ pr, i }) => needsYouAt(pr, i)))
       .sort((a, b) => rank(statusOf(a.pr, a.i)) - rank(statusOf(b.pr, b.i)))
@@ -247,7 +275,7 @@ export const register: Register = (on, options) => {
     const groupOf = (stack: Stack): string => {
       const bottom = stack.prs[0]
       if (!bottom || grouping === 'none') return ''
-      return tone(bottom, nextAction(bottom, true)).status
+      return statusOf(bottom, 0)
     }
     const groupColor = (key: string) => STATUS_COLOR[key] ?? 'suggestion'
     // place: 'move' when drawn in Your move, since the same PR can also sit in its repo section
@@ -256,8 +284,7 @@ export const register: Register = (on, options) => {
       const work = workAction(pr, action, options.showCopilotPass !== false, str(options.workPrompt))
       const ci = ciLine(pr)
       const review = reviewLine(pr)
-      const { color: statusColor, status } = tone(pr, action)
-      const needsMe = Boolean(action.prompt)
+      const { color: statusColor, status, needsMe, isManual } = statusFor(pr, i)
       const color = cardColor(pr, statusColor, needsMe)
       const isDim = isAttention && !needsMe
       const hasBar = isAttention && needsMe
@@ -280,6 +307,7 @@ export const register: Register = (on, options) => {
             </Text>
           </Box>
           <Box flexShrink={0} marginLeft={1}>
+            {isManual && <Text dimColor>✎ </Text>}
             <Text color={statusColor}>{status}</Text>
           </Box>
         </Box>
@@ -311,6 +339,7 @@ export const register: Register = (on, options) => {
             <Button key={key('copy-url')} label={label('⧉ copy link')} onPress={press => void $.ui.copy({ text: pr.url, surface: press.surface })} />
             <Button key={key('browser')} label={label('↗ open')} onPress={() => open(pr.url)} />
             <Button key={key('copy-num')} label={label(`# copy ${pr.number}`)} onPress={press => void $.ui.copy({ text: String(pr.number), surface: press.surface })} />
+            <Button key={key('move')} label={label(`⇄ move: ${nextMove(manual[pr.url])?.slice(2) ?? 'auto'}`)} onPress={() => void saveOverride($, pr.url, nextMove(manual[pr.url]))} />
           </Box>
           <Text dimColor={isDim} wrap="truncate-end">
             <Text color={ci.color}>{ci.text}</Text>

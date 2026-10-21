@@ -3,7 +3,7 @@ import { hostOf, summaryOf, ticketKey } from './shared'
 
 const query = `{viewer{pullRequests(first:50,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{
   number title bodyText url isDraft headRefName baseRefName reviewDecision mergeable changedFiles additions deletions
-  repository{name nameWithOwner defaultBranchRef{name}}
+  repository{name nameWithOwner viewerPermission defaultBranchRef{name}}
   reviewRequests(first:20){totalCount nodes{requestedReviewer{... on Bot{login} ... on User{login}}}}
   reviews(first:50){nodes{author{login}}}
   reviewThreads(first:100){nodes{isResolved}}
@@ -13,6 +13,8 @@ const query = `{viewer{pullRequests(first:50,states:OPEN,orderBy:{field:UPDATED_
 }}}}`
 
 const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED'])
+// READ (or null) cannot request reviews, e.g. a PR from a fork into someone else's repo
+const CAN_REQUEST_REVIEW = new Set(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE'])
 
 type Context = { __typename: string; status?: string; conclusion?: string | null; state?: string }
 
@@ -46,6 +48,7 @@ export function toPr(node: any): Pr {
     checksPassed: passed,
     checksTotal: contexts.length,
     reviewRequests: node.reviewRequests.totalCount,
+    canRequestReview: CAN_REQUEST_REVIEW.has(node.repository.viewerPermission),
     // login is copilot-pull-request-reviewer once it reviewed
     hasCopilot: reviewers.some(login => login.toLowerCase().includes('copilot')),
     unresolved: node.reviewThreads.nodes.filter((t: { isResolved: boolean }) => !t.isResolved).length,

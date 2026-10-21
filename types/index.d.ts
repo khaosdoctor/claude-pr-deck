@@ -17,6 +17,8 @@ export type Pr = {
   checksPassed: number
   checksTotal: number
   reviewRequests: number
+  // false when the user lacks the permission to request reviews on the repo
+  canRequestReview: boolean
   hasCopilot: boolean
   unresolved: number
   changedFiles: number
@@ -50,6 +52,6 @@ export type Snapshot = { prs: Pr[]; updatedAt: number; project?: string; error?:
 
 declare module 'claude-code' {
   interface PluginState {
-    'pr-deck': { snapshot: Snapshot | null; showAll: boolean; groupBy: GroupBy; collapsed: string[]; ignored: string[]; showIgnored: boolean; view: View }
+    'pr-deck': { snapshot: Snapshot | null; showAll: boolean; groupBy: GroupBy; collapsed: string[]; ignored: string[]; overrides: Record<string, string>; showIgnored: boolean; view: View }
   }
 }
