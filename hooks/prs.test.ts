@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { ActionState, Pr, StatePrompts } from '../types'
 import { parseJsonc, stripJsonComments } from './jsonc'
-import { nextAction, promptsTemplate, STATES, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
+import { nextAction, plain, promptsTemplate, STATES, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
 import { repoFromRemote, ticketUrl } from './providers'
 import { azdo } from './providers/azdo'
 import { gitea } from './providers/gitea'
@@ -155,6 +155,43 @@ test('chains PRs whose base is another PR head into one stack', () => {
   expect(stacks.map(s => s.prs.map(p => p.number))).toEqual([[1, 2, 3], [9]])
 })
 
+test('PRs that point at each other or at themselves still show up, once', () => {
+  const loop = toStacks([pr({ number: 1, head: 'a', base: 'b' }), pr({ number: 2, head: 'b', base: 'a' }), pr({ number: 3, head: 'c', base: 'c' })])
+  expect(loop.map(s => s.prs.map(p => p.number)).sort()).toEqual([[1, 2], [3]])
+
+  // a head that comes back down the chain must not loop forever
+  const back = toStacks([pr({ number: 1, head: 'r', base: 'main' }), pr({ number: 2, head: 'c', base: 'r' }), pr({ number: 3, head: 'r', base: 'c' })])
+  expect(back.flatMap(s => s.prs.map(p => p.number)).sort()).toEqual([1, 2, 3])
+
+  // two PRs from the same head are one parent, so the child is not listed twice
+  const twins = toStacks([pr({ number: 1, head: 'a', base: 'main' }), pr({ number: 2, head: 'a', base: 'release' }), pr({ number: 3, head: 'b', base: 'a' })])
+  expect(twins.flatMap(s => s.prs.map(p => p.number)).sort()).toEqual([1, 2, 3])
+})
+
+test('a PR from the default branch does not swallow the PRs based on it', () => {
+  const stacks = toStacks([pr({ number: 1, head: 'main', base: 'main' }), pr({ number: 2, head: 'feat', base: 'main' })])
+  expect(stacks.map(s => s.prs.map(p => p.number))).toEqual([[1], [2]])
+})
+
+test('repos that share a short name do not share stacks', () => {
+  const stacks = toStacks([pr({ number: 1, head: 'a', base: 'main' }), pr({ number: 2, head: 'b', base: 'a', fullName: 'other/api' })])
+  expect(stacks.map(s => s.prs.map(p => p.number))).toEqual([[1], [2]])
+})
+
+test('approved PRs without checks are mergeable', () => {
+  expect(nextAction(pr({ review: 'APPROVED', ci: 'NONE', reviewRequests: 0 }), true).state).toBe('mergeable')
+  expect(nextAction(pr({ review: 'APPROVED', ci: 'NONE' }), false).state).toBe('stack-below')
+  expect(nextAction(pr({ review: 'APPROVED', ci: 'PENDING' }), true).state).toBe('ci-running')
+})
+
+test('summary ignores HTML comments, images and tag-only lines, and keeps snake_case', () => {
+  expect(summaryOf('<!-- Describe your changes here -->\nAdds the drawer to every page')).toBe('Adds the drawer to every page')
+  expect(summaryOf('<!--\nPlease describe what this does\nand why it is needed\n-->\n\nAdds the drawer to every page')).toBe('Adds the drawer to every page')
+  expect(summaryOf('![Screenshot of the new pane](pane.png)\nAdds the drawer to every page')).toBe('Adds the drawer to every page')
+  expect(summaryOf('<img width="400" alt="the pane" src="pane.png">\r\nAdds the drawer to every page\r\n')).toBe('Adds the drawer to every page')
+  expect(summaryOf('Renames get_user_name to fetch_user')).toBe('Renames get_user_name to fetch_user')
+})
+
 test('next action follows CI, review and stack position', () => {
   expect(nextAction(pr({ ci: 'FAILURE' }), true).label).toBe('Fix CI')
   expect(nextAction(pr({ unresolved: 2 }), true).label).toBe('Address comments')
@@ -262,6 +299,10 @@ test('a custom work template fills the placeholders, blank falls back to the def
   const waiting = { state: 'in-review', label: 'Wait for review' } as const
   expect(workAction(custom, waiting, false, 'Review #{pr} on {branch} {nope}').prompt).toBe('Review #42 on feat/x {nope}')
   expect(workAction(custom, waiting, false, '  ').prompt).toContain('check out branch feat/x')
+})
+
+test('placeholders named like inherited object keys stay as written', () => {
+  expect(plain('{constructor} {toString} {pr}', { pr: '7' })).toBe('{constructor} {toString} 7')
 })
 
 test('prompts use the CLI of the PR host', () => {

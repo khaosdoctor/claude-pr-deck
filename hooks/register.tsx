@@ -7,6 +7,7 @@ import { parseJsonc } from './jsonc'
 import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
+import { keepFailedHosts, parseConfig } from './snapshot'
 import { TERMINALS } from './terminals'
 import type { TerminalEnv } from './terminals'
 
@@ -43,16 +44,25 @@ const nextMove = (current: string | undefined) => MOVES[MOVES.indexOf(current ??
 
 const configFile = async ($: EngineInterface, name: string) => `${(await $.env.get('HOME')) ?? ''}/.config/${name}`
 
+// Loads and saves of the config file run one at a time: a refresh reading the file between a save's state update and its write would put the old values back.
+const configQueue = { tail: Promise.resolve() as Promise<unknown> }
+function serial<T>(task: () => Promise<T>): Promise<T> {
+  const result = configQueue.tail.then(task)
+  configQueue.tail = result.catch(() => undefined)
+  return result
+}
+
 // The config file is the source of truth; edits to it apply on the next refresh.
-async function loadConfig($: EngineInterface) {
-  const parsed: { ignored?: unknown; overrides?: unknown } = await $.fs
-    .read(await configFile($, 'pr-deck.json'))
-    .then(JSON.parse)
-    .catch(() => ({}))
-  const list = Array.isArray(parsed.ignored) ? parsed.ignored.filter((x): x is string => typeof x === 'string') : []
-  await update($, ignored, () => list.map(x => x.toLowerCase()))
-  const stored = typeof parsed.overrides === 'object' && parsed.overrides !== null ? Object.entries(parsed.overrides) : []
-  await update($, overrides, () => Object.fromEntries(stored.filter(([, status]) => MOVES.includes(status))))
+function loadConfig($: EngineInterface) {
+  return serial(async () => {
+    const path = await configFile($, 'pr-deck.json')
+    const text = (await $.fs.exists(path)) ? await $.fs.read(path).catch(() => '') : '{}'
+    const config = parseConfig(text, MOVES)
+    // a file that does not parse (mid-edit) keeps what is in memory, or the next save would wipe the person's list
+    if (!config) return
+    await update($, ignored, () => config.ignored)
+    await update($, overrides, () => config.overrides)
+  })
 }
 
 // A separate file from pr-deck.json: the mod only reads it, so it can keep the user's comments.
@@ -70,22 +80,26 @@ async function loadPrompts($: EngineInterface) {
 async function saveConfig($: EngineInterface) {
   const snap = await read($, snapshot)
   const urls = new Set(snap?.prs.map(pr => pr.url))
-  // overrides of PRs that are gone are dropped; before the first fetch there is nothing to compare with
-  const kept = Object.entries(await read($, overrides)).filter(([url]) => !snap || urls.has(url))
+  // overrides of PRs that are gone are dropped; before the first fetch, or after a failed one, there is nothing to compare with
+  const kept = Object.entries(await read($, overrides)).filter(([url]) => !snap || snap.error || urls.has(url))
   const config = { ignored: await read($, ignored), overrides: Object.fromEntries(kept) }
   await $.fs.write(await configFile($, 'pr-deck.json'), `${JSON.stringify(config, null, 2)}\n`)
 }
 
 // undefined puts the PR back to auto
-async function saveOverride($: EngineInterface, url: string, status: string | undefined) {
-  const rest = Object.entries(await read($, overrides)).filter(([key]) => key !== url)
-  await update($, overrides, () => Object.fromEntries(status ? [...rest, [url, status]] : rest))
-  await saveConfig($)
+function saveOverride($: EngineInterface, url: string, status: string | undefined) {
+  return serial(async () => {
+    const rest = Object.entries(await read($, overrides)).filter(([key]) => key !== url)
+    await update($, overrides, () => Object.fromEntries(status ? [...rest, [url, status]] : rest))
+    await saveConfig($)
+  })
 }
 
-async function saveIgnored($: EngineInterface, list: string[]) {
-  await update($, ignored, () => list)
-  await saveConfig($)
+function saveIgnored($: EngineInterface, list: (current: string[]) => string[]) {
+  return serial(async () => {
+    await update($, ignored, list)
+    await saveConfig($)
+  })
 }
 
 async function openFile($: EngineInterface, options: PluginOptions, name: string, create: (path: string) => Promise<unknown>) {
@@ -105,9 +119,7 @@ async function refresh($: EngineInterface, options: PluginOptions) {
   const project = remote?.exitCode === 0 ? repoFromRemote(remote.stdout) : undefined
   const error = errors.join(' · ')
 
-  // every host failed: keep the last list on screen next to the error
-  const failed = errors.length > 0 && prs.length === 0
-  await update($, snapshot, (old): Snapshot => ({ prs: failed ? (old?.prs ?? []) : prs, updatedAt: now, project, error: error || undefined }))
+  await update($, snapshot, (old): Snapshot => ({ prs: keepFailedHosts(prs, old?.prs ?? [], errors), updatedAt: now, project, error: error || undefined }))
 }
 
 // the session name for a PR, e.g. pr-3109-worker; anything outside [A-Za-z0-9._-] becomes '-', empty turns naming off
@@ -204,7 +216,7 @@ export const register: Register = (on, options) => {
         options,
         label,
         back: () => void update($, view, () => 'list'),
-        openIgnored: () => void openFile($, options, 'pr-deck.json', () => saveConfig($)),
+        openIgnored: () => void openFile($, options, 'pr-deck.json', () => serial(() => saveConfig($))),
         // the file is only created here, with every state as a commented-out block
         openPrompts: () => void openFile($, options, 'pr-deck.prompts.jsonc', path => $.fs.write(path, promptsTemplate())),
       })
@@ -241,12 +253,12 @@ export const register: Register = (on, options) => {
     const sections = pinMoves ? stacks.filter(s => !s.prs.every((pr, i) => statusFor(pr, i).needsMe)) : stacks
     const repos = [...new Set(sections.map(s => s.repo))]
     // numbered by bottom PR so a stack keeps its number when grouping changes
-    const stackNumber = (stack: Stack) =>
-      stacks
-        .filter(s => s.prs.length > 1)
-        .map(s => s.prs[0]?.number ?? 0)
-        .sort((a, b) => a - b)
-        .indexOf(stack.prs[0]?.number ?? 0) + 1
+    // PR numbers repeat across repos, so the url identifies the bottom PR
+    const bottoms = stacks
+      .filter(s => s.prs.length > 1)
+      .flatMap(s => s.prs.slice(0, 1))
+      .sort((a, b) => a.number - b.number || a.url.localeCompare(b.url))
+    const stackNumber = (stack: Stack) => bottoms.findIndex(pr => pr.url === stack.prs[0]?.url) + 1
     // border, padding, "#1234 ", the stack marker and the status take ~28 columns
     const titleRoom = Math.max(20, (e.viewport?.columns ?? 80) - 28)
     const submit = (text: string) => void $.prompt.submit({ text })
@@ -471,8 +483,8 @@ export const register: Register = (on, options) => {
         {promptsError && <Text color="error">prompts file: {short(promptsError, 200)}</Text>}
         {prs.length === 0 && (
           <Box flexDirection="column" borderStyle="round" borderColor="subtle" paddingX={1} marginTop={1}>
-            <Text dimColor>No open PRs of yours in {snap.project}.</Text>
-            <Button key="show-all" label="Show all PRs" variant="primary" onPress={toggle} />
+            <Text dimColor>{isAll ? 'No open PRs of yours.' : `No open PRs of yours in ${snap.project}.`}</Text>
+            {!isAll && <Button key="show-all" label="Show all PRs" variant="primary" onPress={toggle} />}
           </Box>
         )}
         {pinMoves && (
@@ -528,7 +540,10 @@ export const register: Register = (on, options) => {
                 plain
                 dimColor
                 label="⊘ ignore"
-                onPress={() => saveIgnored($, [...ignoredList, snap.prs.find(pr => pr.repo === repo)?.fullName ?? repo])}
+                onPress={() => {
+                  const name = snap.prs.find(pr => pr.repo === repo)?.fullName ?? repo
+                  void saveIgnored($, list => (list.includes(name) ? list : [...list, name]))
+                }}
               />
             </Box>
             {/* viewport is the whole screen, not the pane: draw a long rule and clip it to one row of the pane's width */}
@@ -552,7 +567,7 @@ export const register: Register = (on, options) => {
                       const isFolded = isStack && folded.has(stackId)
                       const top = stack.prs.at(-1)
                       return (
-                        <Box key={`${repo}:${stack.prs[0]?.head}`} flexDirection="column">
+                        <Box key={stackId} flexDirection="column">
                           {isStack && (
                             <Button key={`stack:${stackId}`} plain onPress={() => fold(stackId)}>
                               <Text color="claude">
@@ -594,7 +609,7 @@ export const register: Register = (on, options) => {
                     key={`unignore:${name}`}
                     plain
                     label="↺ unignore"
-                    onPress={() => saveIgnored($, ignoredList.filter(x => x !== name))}
+                    onPress={() => void saveIgnored($, list => list.filter(x => x !== name))}
                   />
                 </Box>
               ))}

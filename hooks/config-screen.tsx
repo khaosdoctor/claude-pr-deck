@@ -71,11 +71,12 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
           <Text bold color="claude">PR DECK CONFIG</Text>
         </Box>
         <Box justifyContent="center" flexWrap="wrap" columnGap={1}>
-          <Button label={label('← Back')} onPress={back} />
-          <Button label={label('⚙ Open in Claude /config')} onPress={() => void openInClaude()} />
-          <Button label={label('✎ Open file')} onPress={() => void openSettings()} />
-          <Button plain dimColor label={label('✎ open ignored list')} onPress={openIgnored} />
-          <Button plain dimColor label={label('✎ open prompts file')} onPress={openPrompts} />
+          {/* keyed: with buttonStyle icons the three ✎ labels are the same, and a keyless Button is addressed by its label */}
+          <Button key="back" label={label('← Back')} onPress={back} />
+          <Button key="open-config" label={label('⚙ Open in Claude /config')} onPress={() => void openInClaude()} />
+          <Button key="open-settings" label={label('✎ Open file')} onPress={() => void openSettings()} />
+          <Button key="open-ignored" plain dimColor label={label('✎ open ignored list')} onPress={openIgnored} />
+          <Button key="open-prompts" plain dimColor label={label('✎ open prompts file')} onPress={openPrompts} />
         </Box>
       </Box>
       {Object.keys(SECTIONS).map(section => {

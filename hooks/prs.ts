@@ -7,23 +7,34 @@ export { summaryOf } from './providers/shared'
 // Single PRs come out as stacks of one.
 export function toStacks(prs: Pr[]): Stack[] {
   const stacks: Stack[] = []
-  const repos = [...new Set(prs.map(pr => pr.repo))]
+  // the short repo name is not unique: acme/api and other/api, or a GitLab and a GitHub api
+  const repos = new Map<string, Pr[]>()
+  for (const pr of prs) {
+    const key = `${pr.host}/${pr.fullName}`
+    repos.set(key, [...(repos.get(key) ?? []), pr])
+  }
 
-  for (const repo of repos) {
-    const mine = prs.filter(pr => pr.repo === repo)
-    const heads = new Set(mine.map(pr => pr.head))
-    const roots = mine.filter(pr => !heads.has(pr.base))
+  for (const mine of repos.values()) {
+    // the default branch is never a parent: a PR from a fork's main would otherwise make every PR based on main a child
+    const isParent = (parent: Pr, pr: Pr) => parent !== pr && parent.head === pr.base && parent.head !== parent.trunk
+    const roots = mine.filter(pr => !mine.some(parent => isParent(parent, pr)))
+    const seen = new Set<Pr>()
 
-    for (const root of roots) {
+    // PRs that point at each other have no root, so they start a stack of their own after the real roots
+    for (const root of [...roots, ...mine]) {
+      if (seen.has(root)) continue
       const chain: Pr[] = []
       const queue = [root]
+      seen.add(root)
       // depth-first walk, a branching stack shows as one flattened chain
       while (queue.length > 0) {
         const pr = queue.shift() as Pr
         chain.push(pr)
-        queue.unshift(...mine.filter(child => child.base === pr.head))
+        const children = mine.filter(child => !seen.has(child) && isParent(pr, child))
+        for (const child of children) seen.add(child)
+        queue.unshift(...children)
       }
-      stacks.push({ repo, base: root.base, prs: chain })
+      stacks.push({ repo: root.repo, base: root.base, prs: chain })
     }
   }
 
@@ -33,7 +44,7 @@ export function toStacks(prs: Pr[]): Stack[] {
 export type Action = { state: ActionState; label: string; prompt?: string }
 
 // Placeholders are plain text, not shell-quoted like the command ones; unknown ones stay as written.
-export const plain = (template: string, vars: Record<string, string>) => template.replace(/\{(\w+)\}/g, (match, name: string) => vars[name] ?? match)
+export const plain = (template: string, vars: Record<string, string>) => template.replace(/\{(\w+)\}/g, (match, name: string) => (Object.hasOwn(vars, name) ? vars[name] : undefined) ?? match)
 
 // What the prompt and session name templates can use; {number} is an alias of {pr}.
 export const prVars = (pr: Pr): Record<string, string> => ({
@@ -75,10 +86,10 @@ const STATE_INFO: Record<ActionState, { label: string; when: string; next?: stri
   },
   mergeable: {
     label: 'Merge',
-    when: 'approved, CI passing, and the PR is alone or at the bottom of its stack',
+    when: 'approved, no check failing or running, and the PR is alone or at the bottom of its stack',
     next: 'PR {url} (branch {branch}) is approved and green. Confirm with me, then merge it with {cli}.',
   },
-  'stack-below': { label: 'Wait for stack below', when: 'approved and green, but a PR below it in the stack is not merged yet' },
+  'stack-below': { label: 'Wait for stack below', when: 'approved with no check failing, but a PR below it in the stack is not merged yet' },
   'ci-running': { label: 'Wait for CI', when: 'checks are still running' },
   'no-reviewers': {
     label: 'Request a review',
@@ -97,8 +108,10 @@ function stateOf(pr: Pr, isBottom: boolean): ActionState {
   if (pr.ci === 'FAILURE' || pr.ci === 'ERROR') return 'ci-failed'
   if (pr.mergeable === 'CONFLICTING') return 'conflicts'
   if (pr.review === 'CHANGES_REQUESTED' || pr.unresolved > 0) return 'comments'
-  if (pr.review === 'APPROVED' && pr.ci === 'SUCCESS') return isBottom ? 'mergeable' : 'stack-below'
-  if (pr.ci === 'PENDING' || pr.ci === 'EXPECTED') return 'ci-running'
+  const isRunning = pr.ci === 'PENDING' || pr.ci === 'EXPECTED'
+  // NONE is a repo without checks or a host that does not report them; failures are handled above
+  if (pr.review === 'APPROVED' && !isRunning) return isBottom ? 'mergeable' : 'stack-below'
+  if (isRunning) return 'ci-running'
   if (pr.reviewRequests === 0) return pr.canRequestReview ? 'no-reviewers' : 'maintainers'
   return 'in-review'
 }

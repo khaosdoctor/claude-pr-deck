@@ -9,8 +9,10 @@ const TICKET_KEYS = new RegExp(TICKET_KEY.source, 'gi')
 // markdown links keep their text; emphasis, code ticks and list or quote markers go
 const plainText = (line: string) =>
   line
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[*_`]+/g, '')
+    // underscores only as emphasis, so snake_case names stay whole
+    .replace(/[*`]+|\b_+|_+\b/g, '')
     .replace(/^\s*(?:[-*+>]|\d+\.)\s+/, '')
     .trim()
 
@@ -19,10 +21,12 @@ const plainText = (line: string) =>
 // Parsers keep the whole sentence; the pane cuts it to the summaryLength option.
 export function summaryOf(body: string, max = Infinity): string {
   const isProse = (raw: string) => {
-    if (/^\s*(?:#|```|\||\[[^\]]+\]:)/.test(raw)) return false
+    if (/^\s*(?:#|```|\||\[[^\]]+\]:|(?:<\/?[a-z][^>]*>\s*)+$)/i.test(raw)) return false
     return plainText(raw).replace(TICKET_KEYS, '').split(/\s+/).filter(word => /\w{2,}/.test(word)).length >= 3
   }
-  const line = plainText(body.split('\n').find(isProse) ?? '')
+  // PR templates keep their instructions in HTML comments, often over several lines
+  const lines = body.replace(/<!--[\s\S]*?(?:-->|$)/g, '').split('\n')
+  const line = plainText(lines.find(isProse) ?? '')
   const sentence = line.match(/^.+?[.!?](?=\s|$)/)?.[0] ?? line
   return sentence.length > max ? `${sentence.slice(0, max - 1).trimEnd()}…` : sentence
 }
