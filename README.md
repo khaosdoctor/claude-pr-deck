@@ -18,14 +18,14 @@ Under the CI, review and diff stats you get the ticket key, linking to your trac
 
 - ***→ Next action***: whatever the PR needs now (fix CI, rebase, address comments, request a review, mark ready or merge). Pressing it sends the matching prompt to the session.
 - ***✦ Fable review***: asks the session to run a review subagent and report back to you, without posting anything on the code host.
-- ***❯ Work on it***: loads the PR into the current session. On GitHub, once a PR is green and only waiting on people, this becomes ***✦ Copilot pass***, which requests a Copilot review and works through its comments.
+- ***❯ Work on it***: loads the PR into the current session. On GitHub, once a PR is green, only waiting on people and Copilot has not been asked yet, this becomes ***✦ Copilot pass***, which requests a Copilot review and works through its comments.
 - ***◉ watch***: asks the session to keep watching the PR, check its CI and review state every few minutes, tell you about each change in one line, and stop once CI passes and nothing else needs you.
 - ***⎇ Switch here***: moves the current session to the PR's repo and branch. If you are not in a clone of that repo, the session finds one (or clones it), checks out the branch, summarizes the PR and waits.
 - ***⧉ New session***: opens a new Claude session in the PR's clone folder with the same prompt as ***Work on it***. It opens a tab or window in the terminal you are using (see Commands) and a toast tells you where it went, or what went wrong.
 
 ***⇄ move***, in the first button row, overrides the status when the automatic one is wrong, say a PR marked ***● needs you*** that you cannot do anything about. Each press cycles to the next status (***○ waiting***, ***● needs you***, ***✓ approved***, then back to ***auto***). An overridden PR gets a dim ✎ before its status, and everything that depends on the status follows: colour, group, ***● YOUR MOVE*** and the ***NEED YOU*** count. Overrides are saved in the config file.
 
-The pane scopes to the repo the session runs in, with a button to show all repos instead. Repos and stacks collapse, and repos you do not care about can be ignored. ***⊖ collapse*** folds one level per press (cards to their title line, then status groups and stacks, then repos and ***● YOUR MOVE***), and the press after that opens everything again. The button shows the current level out of 3.
+The pane scopes to the repo the session runs in, with a button to show all repos instead. Repos and stacks collapse, and repos you do not care about can be ignored. ***⊖ collapse*** collapses one level per press (cards to their title line, then status groups and stacks, then repos and ***● YOUR MOVE***), and the press after that opens everything again. The button shows the current level out of 3.
 
 ### Your move and card colours
 
@@ -82,9 +82,9 @@ Gitea, Forgejo and Azure DevOps do not give the mod CI state or unresolved threa
 
 ## Usage
 
-Run `/prs` to open the pane. It refreshes on its own (every 2 minutes by default) and on ***↻ Refresh***.
+Run `/prs` to open the pane. It refreshes when you run `/prs`, on its own (every 2 minutes by default) and on ***↻ Refresh***.
 
-`/prs watch <pr>` does what ***◉ watch*** does without opening the pane, so any session can start watching a PR, for example one you open yourself in a clone or a `claude "/prs watch 3109"` from a script. The PR can be a number, `owner/repo#number` or its URL. A bare number that is open in more than one repo picks the session's repo, and otherwise asks for `owner/repo#number`.
+`/prs watch <pr>` does what ***◉ watch*** does without opening the pane, so any session can start watching a PR, for example one that ***⧉ New session*** opened or one you start yourself in a clone. The PR can be a number, `owner/repo#number` or its URL. A bare number that is open in more than one repo picks the session's repo, and otherwise asks for `owner/repo#number`. A PR the session has not seen yet makes it refresh first.
 
 ## Options
 
@@ -109,7 +109,7 @@ All of these are in `/config` under pr-deck.
 
 **Open on start** opens the pane when a session starts without stealing focus from the prompt, while `/prs` opens it with focus. **Start collapsed** opens every card collapsed to its title line. **Always show all projects** starts with PRs from every repo instead of the session's one; the scope button still toggles it.
 
-**Card colors**: `attention` is described above. `status` colours the border by PR state, `repo` gives one colour per repo and `random` one per PR. The colour button in the pane header cycles through them and saves your pick.
+**Card colors**: `attention` is described under Your move and card colours. `status` colours the border by PR state, `repo` gives one colour per repo and `random` one per PR. The colour button in the pane header cycles through them and saves your pick.
 
 **Button labels**: in `icons` mode the next-action button keeps its text, since an arrow alone does not tell you which action it is.
 
@@ -131,7 +131,7 @@ All of these are in `/config` under pr-deck.
 | Gitea/Forgejo fetch command | shell template | empty |
 | Azure DevOps fetch command | shell template | empty |
 
-**Code hosts** is the list of hosts to fetch from, like `github,gitlab`. Everything shows in one list, and a host that fails shows its error in the pane while the others still load. If every host fails, the last list stays on screen next to the error.
+**Code hosts** is the list of hosts to fetch from, like `github,gitlab`. Everything shows in one list. A host that fails shows its error in the pane and keeps the PRs from its last successful fetch, while the others still load.
 
 **Issue tracker URL** is the base the ticket key (taken from the PR title or branch) is appended to. For Jira, `https://yourcompany.atlassian.net` becomes `https://yourcompany.atlassian.net/browse/ABC-123`, and a URL that already has `/browse` is used as is. For Linear, use `https://linear.app/yourteam/issue/`. When empty, or when the tracker is `none`, the key shows as plain text.
 
@@ -163,7 +163,9 @@ Each command is a shell template run with `sh -c`. Placeholders in braces get th
 
 **Local clone folder** is where your repos are cloned, like `~/code/{host}/{owner}/{repo}`. `{host}`, `{owner}` and `{repo}` are filled in as plain text and a leading `~` is your home folder. ***⧉ New session*** starts there and ***⎇ Switch here*** tells the session to look there first. When empty, new sessions start in the current folder and ***Switch here*** asks the session to look around nearby folders.
 
-**New session command**: when empty, the mod picks the terminal from the session's own environment, multiplexers first: a herdr, tmux, zellij, WezTerm or kitty tab, else an Alacritty, Rio, Ghostty or iTerm window, and Terminal when nothing else matches. herdr needs `jq`, kitty needs `allow_remote_control yes` (or `listen_on`) in `kitty.conf`, and Warp has no way to start a command in a new tab so it ends up in Terminal; set your own command if you use it. Rio and Ghostty start your login shell (`$SHELL`) and hand it the prompt in a `PR_DECK_PROMPT` variable, which works in sh-style shells and fish; with nushell, set your own command. A non-empty command replaces all of this; put `--` between `{claude}` and `{prompt}`, as the built-in ones do, so a prompt that starts with a dash is not read as an option. In it, `{dir}` is the clone folder, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch, `{repo}` the `owner/repo` name and `{name}` the session name. `{shellPrompt}` is the prompt already quoted for the terminal's own shell, for commands that type it into a pane like herdr does.
+**New session command**: when empty, the mod picks the terminal from the session's own environment, multiplexers first: a herdr, tmux, zellij, WezTerm or kitty tab, else an Alacritty, Rio, Ghostty or iTerm window, and Terminal when nothing else matches. herdr needs `jq`, kitty needs `allow_remote_control yes` (or `listen_on`) in `kitty.conf`, and Warp has no way to start a command in a new tab so it ends up in Terminal; set your own command if you use it. Rio and Ghostty start your login shell (`$SHELL`) and hand it the prompt in a `PR_DECK_PROMPT` variable, which works in sh-style shells and fish; with nushell, set your own command.
+
+A non-empty command replaces all of this; put `--` between `{claude}` and `{prompt}`, as the built-in ones do, so a prompt that starts with a dash is not read as an option. In it, `{dir}` is the clone folder, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch, `{repo}` the `owner/repo` name and `{name}` the session name. `{shellPrompt}` is the prompt already quoted for the terminal's own shell, for commands that type it into a pane like herdr does.
 
 ### Prompts
 
@@ -172,9 +174,9 @@ Each command is a shell template run with `sh -c`. Placeholders in braces get th
 | Session name | `pr-{pr}-worker` |
 | Fable review prompt | `Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}.` |
 | Work on it prompt | `Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.` |
-| Watch prompt | ``Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes (wait in the background, e.g. `gh pr checks {pr} --repo {fullName} --watch`), tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.`` |
+| Watch prompt | `Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes, waiting in the background between checks, tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.` |
 
-These four are templates. Placeholders here are filled in as plain text (no shell quoting), and one that is not in the list stays as written.
+Each of these is a template. Placeholders here are filled in as plain text (no shell quoting), and one that is not in the list stays as written.
 
 | Placeholder | Value |
 | --- | --- |
@@ -188,7 +190,7 @@ These four are templates. Placeholders here are filled in as plain text (no shel
 | `{host}` | code host name, such as `github.com` |
 | `{cli}` | the host's command line tool, such as `gh` |
 
-**Session name**: ***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>` on the current session. Anything that is not an ASCII letter, digit, `.`, `_` or `-` becomes `-`. Turn ***Auto rename sessions*** off, or leave the name empty, to skip naming. In your own new session command, `{claude}` is `claude` with that flag.
+**Session name**: ***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>` on the current session. Anything that is not an ASCII letter, digit, `.`, `_` or `-` becomes `-`, and leading dashes are dropped so the name is never read as a flag. Turn ***Auto rename sessions*** off, or leave the name empty, to skip naming. In your own new session command, `{claude}` is `claude` with that flag.
 
 **Fable review prompt** is what ***✦ Fable review*** sends. **Work on it prompt** is what ***❯ Work on it*** sends, and the first prompt of ***⧉ New session***. **Watch prompt** is what ***◉ watch*** sends. Empty means the default. The ***✦ Copilot pass*** prompt cannot be changed.
 
@@ -244,13 +246,13 @@ The prompts live in `~/.config/pr-deck.prompts.jsonc`. The file is yours, the mo
 }
 ```
 
-`next` replaces the prompt of the next-action button. The wait-only states (`stack-below`, `ci-running`, `maintainers` and `in-review`) have no prompt of their own, so giving one a `next` turns the wait into a button and the PR starts counting as needing you. `work` replaces the ***❯ Work on it*** prompt and the first prompt of ***⧉ New session*** in that state, and falls back to the Work on it prompt option. `watch` replaces the ***◉ watch*** prompt in that state and falls back to the Watch prompt option. All three take the placeholders above plus `{readyHint}` (the host's command for marking a PR ready, like `gh pr ready`) and `{state}`. If the file does not parse, the pane shows the error and keeps the defaults until you fix it. Edits apply on the next refresh.
+`next` replaces the prompt of the next-action button. The wait-only states (`stack-below`, `ci-running`, `maintainers` and `in-review`) have no prompt of their own, so giving one a `next` turns the wait into a button and the PR starts counting as needing you. `work` replaces the ***❯ Work on it*** prompt and the first prompt of ***⧉ New session*** in that state, and falls back to the Work on it prompt option. `watch` replaces the ***◉ watch*** prompt in that state and falls back to the Watch prompt option. All three take the placeholders listed under Prompts plus `{readyHint}` (the host's command for marking a PR ready, like `gh pr ready`) and `{state}`. If the file does not parse, the pane shows the error and keeps the defaults until you fix it. Edits apply on the next refresh.
 
 ***✎ open prompts file*** on the ***⚙ Config*** screen opens it with the open config file command. If the file does not exist yet, it creates one with every state as a commented-out block holding its default text, so you can uncomment what you want to change.
 
 ## Config screen
 
-***⚙ Config*** swaps the pane for a screen with every option above: toggles for on/off options, one button per value for pickers, saved on press. Text options show their value with ***⚙ edit in /config*** and ***✎ edit in file*** links. ***← Back*** returns to the list.
+***⚙ Config*** swaps the pane for a screen with every option from Options: toggles for on/off options, one button per value for pickers, saved on press. Text options show their value with ***⚙ edit in /config*** and ***✎ edit in file*** links. ***← Back*** returns to the list.
 
 ![The config screen](docs/config.jpg)
 
@@ -267,7 +269,7 @@ The prompts live in `~/.config/pr-deck.prompts.jsonc`. The file is yours, the mo
 }
 ```
 
-`ignored` is the list of repos hidden from the pane; they show under ***Ignored*** at the bottom. ***⊘ ignore*** next to a repo name adds one, ***↺ unignore*** removes it, and edits to the file apply on the next refresh. `overrides` maps a PR URL to a status (`○ waiting`, `● needs you` or `✓ approved`). ***⇄ move*** sets them, and entries for PRs that are no longer open are dropped when the file is saved.
+`ignored` is the list of repos hidden from the pane; they show under ***Ignored*** at the bottom. ***⊘ ignore*** next to a repo name adds one, ***↺ unignore*** removes it, and edits to the file apply on the next refresh. `overrides` maps a PR URL to a status (`○ waiting`, `● needs you` or `✓ approved`). ***⇄ move*** sets them, entries for PRs that are no longer open are dropped when the file is saved, and the state file picks a new status up on the next refresh.
 
 ## External integrations
 
