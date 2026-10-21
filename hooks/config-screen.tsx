@@ -30,6 +30,8 @@ const SECTION_OF: Record<string, string> = {
   sessionName: 'Prompts',
   fablePrompt: 'Prompts',
   workPrompt: 'Prompts',
+  watchPrompt: 'Prompts',
+  stateFile: 'Commands',
 }
 
 // The /config rows of this plugin, drawn in the pane. A save reloads the module with the new options.

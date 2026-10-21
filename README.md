@@ -17,6 +17,7 @@ Under the CI, review and diff stats you get the ticket key, linking to your trac
 - ***→ Next action***: whatever the PR needs now (fix CI, rebase, address comments, request a review, mark ready or merge). Pressing it sends the matching prompt to the session.
 - ***✦ Fable review***: asks the session to run a review subagent and report back to you, without posting anything on the code host.
 - ***❯ Work on it***: loads the PR into the current session. On GitHub, once a PR is green and only waiting on people, this becomes ***✦ Copilot pass***, which requests a Copilot review and works through its comments.
+- ***◉ watch***: asks the session to keep watching the PR, check its CI and review state every few minutes, tell you about each change in one line, and stop once CI passes and nothing else needs you.
 - ***⎇ Switch here***: moves the current session to the PR's repo and branch. If you are not in a clone of that repo, the session finds one (or clones it), checks out the branch, summarizes the PR and waits.
 - ***⧉ New session***: opens a new Claude session in the PR's clone folder with the same prompt as ***Work on it***. It opens a tab or window in the terminal you are using (see Commands) and a toast tells you where it went, or what went wrong.
 
@@ -142,6 +143,7 @@ All of these are in `/config` under pr-deck.
 | Local clone folder | empty |
 | New session command | empty, which picks a terminal automatically |
 | Auto rename sessions | on |
+| State file | `~/.cache/pr-deck/state.json` |
 
 Each command is a shell template run with `sh -c`. Placeholders in braces get the value wrapped in single quotes, so URLs and prompts with spaces or quotes pass as one argument. Do not add your own quotes around them.
 
@@ -166,8 +168,9 @@ Each command is a shell template run with `sh -c`. Placeholders in braces get th
 | Session name | `pr-{pr}-worker` |
 | Fable review prompt | `Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}.` |
 | Work on it prompt | `Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.` |
+| Watch prompt | ``Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes (wait in the background, e.g. `gh pr checks {pr} --repo {fullName} --watch`), tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.`` |
 
-These three are templates. Placeholders here are filled in as plain text (no shell quoting), and one that is not in the list stays as written.
+These four are templates. Placeholders here are filled in as plain text (no shell quoting), and one that is not in the list stays as written.
 
 | Placeholder | Value |
 | --- | --- |
@@ -183,7 +186,7 @@ These three are templates. Placeholders here are filled in as plain text (no she
 
 **Session name**: ***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>` on the current session. Anything that is not a letter, digit, `.`, `_` or `-` becomes `-`. Turn ***Auto rename sessions*** off, or leave the name empty, to skip naming. In your own new session command, `{claude}` is `claude` with that flag.
 
-**Fable review prompt** is what ***✦ Fable review*** sends. **Work on it prompt** is what ***❯ Work on it*** sends, and the first prompt of ***⧉ New session***. Empty means the default. The ***✦ Copilot pass*** prompt cannot be changed.
+**Fable review prompt** is what ***✦ Fable review*** sends. **Work on it prompt** is what ***❯ Work on it*** sends, and the first prompt of ***⧉ New session***. **Watch prompt** is what ***◉ watch*** sends. Empty means the default. The ***✦ Copilot pass*** prompt cannot be changed.
 
 To change them, open ***⚙ Config*** in the pane and use ***⚙ edit in /config*** or ***✎ edit in file*** on the row, or set them in `~/.claude/settings.json`:
 
@@ -205,7 +208,7 @@ For PR #3109 on `acme/node`, branch `fix-logging`, that names the session `node-
 
 ### Prompts per state
 
-You can also give the next-action button and ***❯ Work on it*** a different prompt depending on what the PR needs. Each PR is in one of these states, checked top to bottom:
+You can also give the next-action button, ***❯ Work on it*** and ***◉ watch*** a different prompt depending on what the PR needs. Each PR is in one of these states, checked top to bottom:
 
 | State | When |
 | --- | --- |
@@ -220,7 +223,7 @@ You can also give the next-action button and ***❯ Work on it*** a different pr
 | `maintainers` | nobody is asked to review and you cannot request reviews on the repo |
 | `in-review` | a review is requested and nothing else needs you |
 
-The prompts live in `~/.config/pr-deck.prompts.jsonc`. The file is yours, the mod only reads it, so comments and trailing commas are fine. Each state takes a `next` and a `work` template, and anything you leave out keeps the defaults:
+The prompts live in `~/.config/pr-deck.prompts.jsonc`. The file is yours, the mod only reads it, so comments and trailing commas are fine. Each state takes a `next`, a `work` and a `watch` template, and anything you leave out keeps the defaults:
 
 ```jsonc
 {
@@ -237,7 +240,7 @@ The prompts live in `~/.config/pr-deck.prompts.jsonc`. The file is yours, the mo
 }
 ```
 
-`next` replaces the prompt of the next-action button. The wait-only states (`stack-below`, `ci-running`, `maintainers` and `in-review`) have no prompt of their own, so giving one a `next` turns the wait into a button and the PR starts counting as needing you. `work` replaces the ***❯ Work on it*** prompt and the first prompt of ***⧉ New session*** in that state, and falls back to the Work on it prompt option. Both take the placeholders above plus `{readyHint}` (the host's command for marking a PR ready, like `gh pr ready`) and `{state}`. If the file does not parse, the pane shows the error and keeps the defaults until you fix it. Edits apply on the next refresh.
+`next` replaces the prompt of the next-action button. The wait-only states (`stack-below`, `ci-running`, `maintainers` and `in-review`) have no prompt of their own, so giving one a `next` turns the wait into a button and the PR starts counting as needing you. `work` replaces the ***❯ Work on it*** prompt and the first prompt of ***⧉ New session*** in that state, and falls back to the Work on it prompt option. `watch` replaces the ***◉ watch*** prompt in that state and falls back to the Watch prompt option. All three take the placeholders above plus `{readyHint}` (the host's command for marking a PR ready, like `gh pr ready`) and `{state}`. If the file does not parse, the pane shows the error and keeps the defaults until you fix it. Edits apply on the next refresh.
 
 ***✎ open prompts file*** on the ***⚙ Config*** screen opens it with the open config file command. If the file does not exist yet, it creates one with every state as a commented-out block holding its default text, so you can uncomment what you want to change.
 
@@ -261,3 +264,37 @@ The prompts live in `~/.config/pr-deck.prompts.jsonc`. The file is yours, the mo
 ```
 
 `ignored` is the list of repos hidden from the pane; they show under ***Ignored*** at the bottom. ***⊘ ignore*** next to a repo name adds one, ***↺ unignore*** removes it, and edits to the file apply on the next refresh. `overrides` maps a PR URL to a status (`○ waiting`, `● needs you` or `✓ approved`). ***⇄ move*** sets them, and entries for PRs that are no longer open are dropped when the file is saved.
+
+## External integrations
+
+On every refresh the mod writes every PR it picked up to a JSON file, so other tools (a status bar, a script, a notifier) can watch it. The path is the ***State file*** option, `~/.cache/pr-deck/state.json` by default; the folder is created when missing, and an empty value turns the file off. The whole file is rewritten each time, PRs grouped by `owner/repo`, and it includes repos you ignore or that are outside the session's scope.
+
+```json
+{
+  "updatedAt": "2026-10-21T09:30:00.000Z",
+  "repos": {
+    "acme/api": [
+      {
+        "number": 7,
+        "title": "ABC-12 add thing",
+        "url": "https://github.com/acme/api/pull/7",
+        "branch": "feat/x",
+        "base": "main",
+        "provider": "github",
+        "host": "github.com",
+        "draft": false,
+        "ci": "FAILURE",
+        "review": "REVIEW_REQUIRED",
+        "mergeable": "MERGEABLE",
+        "unresolved": 0,
+        "state": "ci-failed",
+        "status": "broken",
+        "needsYou": true,
+        "nextAction": "Fix CI"
+      }
+    ]
+  }
+}
+```
+
+`error` appears next to `updatedAt` when a host failed to load, and `override` appears on a PR whose status you set by hand with ***⇄ move***. `state` is one of the ids in the table under Prompts per state, `nextAction` its button label, and `status` the one the card shows without its symbol: `broken`, `conflicts`, `needs you`, `waiting` or `approved`. `needsYou` is true for the PRs counted in ***NEED YOU***. `ci`, `review` and `mergeable` are the values the card uses, for example `SUCCESS`, `FAILURE`, `PENDING` or `NONE` for `ci`.
