@@ -2,13 +2,13 @@ import { quote } from './run'
 
 // Where the session itself runs, read from its environment by register.tsx.
 export type TerminalEnv = { program?: string; bundleId?: string; tmux?: string; zellij?: string; kittyWindow?: string; alacrittyWindow?: string }
-export type Terminal = { name: string; test: (env: TerminalEnv) => boolean; command: string }
+type Terminal = { name: string; test: (env: TerminalEnv) => boolean; command: string }
 
 // Shell templates for opening a new Claude session, filled by run().
 // {claude} is replaced before fill with `claude` or `claude -n <session name>`.
 // {dir} {prompt} {label} are single-quoted by fill; {shellPrompt} is already quoted for the
 // terminal's own shell, so it comes out quoted twice and survives being typed into a pane.
-const osascript = (...lines: string[]) => `osascript ${lines.map(line => `-e ${quote(line)}`).join(' ')} {dir} {prompt}`
+const osascript = (...lines: string[]) => `osascript ${['on run argv', ...lines, 'end run'].map(line => `-e ${quote(line)}`).join(' ')} {dir} {prompt}`
 
 // Multiplexers come before terminal apps, first match wins; the last entry matches anything.
 export const TERMINALS: Terminal[] = [
@@ -46,25 +46,21 @@ export const TERMINALS: Terminal[] = [
     name: 'iTerm',
     test: env => env.program === 'iTerm.app',
     command: osascript(
-      'on run argv',
       'tell application "iTerm"',
       'activate',
       'set w to (create window with default profile)',
       'tell current session of w to write text "cd " & quoted form of item 1 of argv & " && {claude} " & quoted form of item 2 of argv',
       'end tell',
-      'end run',
     ),
   },
   {
     name: 'Terminal',
     test: () => true,
     command: osascript(
-      'on run argv',
       'tell application "Terminal"',
       'activate',
       'do script "cd " & quoted form of item 1 of argv & " && {claude} " & quoted form of item 2 of argv',
       'end tell',
-      'end run',
     ),
   },
 ]

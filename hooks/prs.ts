@@ -30,8 +30,6 @@ export function toStacks(prs: Pr[]): Stack[] {
   return stacks
 }
 
-export type { ActionState, StatePrompts } from '../types'
-
 export type Action = { state: ActionState; label: string; prompt?: string }
 
 // Placeholders are plain text, not shell-quoted like the command ones; unknown ones stay as written.
@@ -53,7 +51,7 @@ export const prVars = (pr: Pr): Record<string, string> => ({
 
 // Same text as the fablePrompt and workPrompt defaults in plugin.json, used when an option is blank.
 export const DEFAULT_FABLE_PROMPT = "Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}."
-export const DEFAULT_WORK_PROMPT =
+const DEFAULT_WORK_PROMPT =
   'Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.'
 
 // Per state: the button label, when it applies (the order of the keys is the order of the checks in stateOf)
@@ -92,10 +90,9 @@ const STATE_INFO: Record<ActionState, { label: string; when: string; next?: stri
 }
 
 export const STATES = Object.keys(STATE_INFO) as ActionState[]
-export const whenOf = (state: ActionState) => STATE_INFO[state].when
 
 // First match wins.
-export function stateOf(pr: Pr, isBottom: boolean): ActionState {
+function stateOf(pr: Pr, isBottom: boolean): ActionState {
   if (pr.isDraft) return 'draft'
   if (pr.ci === 'FAILURE' || pr.ci === 'ERROR') return 'ci-failed'
   if (pr.mergeable === 'CONFLICTING') return 'conflicts'
@@ -144,13 +141,13 @@ export function promptsTemplate(): string {
     '',
     'Placeholders: {pr} {number} {url} {title} {branch} {base} {repo} {fullName} {host} {cli} {readyHint} {state}',
   ]
-  const blocks = STATES.map(state => {
+  const comment = (line: string) => (line ? `// ${line}` : '//')
+  const blocks = STATES.flatMap(state => {
     const { next, when } = STATE_INFO[state]
     const nextLines = next ? [`  "next": ${JSON.stringify(next)},`] : []
-    return [`${state}: ${when}`, `"${state}": {`, ...nextLines, `  "work": ${JSON.stringify(DEFAULT_WORK_PROMPT)}`, '},']
+    return ['', ...[`${state}: ${when}`, `"${state}": {`, ...nextLines, `  "work": ${JSON.stringify(DEFAULT_WORK_PROMPT)}`, '},'].map(comment)]
   })
-  const comment = (line: string) => (line ? `// ${line}` : '//')
-  return [...header.map(comment), '{', ...blocks.flatMap(([title, ...lines]) => ['', comment(title ?? ''), ...lines.map(comment)]), '}', ''].join('\n')
+  return [...header.map(comment), '{', ...blocks, '}', ''].join('\n')
 }
 
 // The third button: once the PR is green and only waiting on people, put Copilot on it

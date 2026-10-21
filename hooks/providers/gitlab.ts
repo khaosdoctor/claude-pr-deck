@@ -1,5 +1,5 @@
 import type { Pr, Provider } from '../../types'
-import { hostOf, summaryOf, ticketKey } from './shared'
+import { hostOf, summaryOf, ticketKey, UNKNOWN } from './shared'
 
 const query = `{currentUser{authoredMergeRequests(state:opened,first:50,sort:UPDATED_DESC){nodes{
   iid title description webUrl draft sourceBranch targetBranch conflicts approved
@@ -40,15 +40,13 @@ function toPr(node: any): Pr {
     head: node.sourceBranch,
     base: node.targetBranch,
     isDraft: node.draft,
-    review: node.approved ? 'APPROVED' : 'NONE',
     mergeable: node.conflicts ? 'CONFLICTING' : 'MERGEABLE',
+    reviewRequests: node.reviewers.nodes.length,
+    ...UNKNOWN,
+    review: node.approved ? 'APPROVED' : 'NONE',
     ci,
     checksPassed: ci === 'SUCCESS' ? 1 : 0,
     checksTotal: node.headPipeline ? 1 : 0,
-    reviewRequests: node.reviewers.nodes.length,
-    // permission unknown, keep offering the review request
-    canRequestReview: true,
-    hasCopilot: false,
     unresolved: node.discussions.nodes.filter((d: any) => d.resolvable && !d.resolved).length,
     changedFiles: Number(stats?.fileCount ?? 0),
     additions: stats?.additions ?? 0,

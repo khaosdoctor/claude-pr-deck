@@ -8,7 +8,7 @@ import { github } from './github'
 import { gitlab } from './gitlab'
 import { TICKET_KEY } from './shared'
 
-export { repoFromRemote, ticketKey } from './shared'
+export { repoFromRemote } from './shared'
 
 const providers: Provider[] = [github, gitlab, gitea, azdo]
 
@@ -52,18 +52,15 @@ export async function fetchAll($: EngineInterface, options: PluginOptions): Prom
   return { prs, errors }
 }
 
-type Tracker = { id: string; keyPattern: RegExp; url: (base: string, key: string) => string }
-
 const withSlash = (base: string) => (base.endsWith('/') ? base : `${base}/`)
 
-const trackers: Tracker[] = [
+const trackers = [
   {
     id: 'jira',
-    keyPattern: TICKET_KEY,
     // a bare site URL gets /browse/, a full prefix is used as given
-    url: (base, key) => `${withSlash(base)}${base.includes('/browse') ? '' : 'browse/'}${key}`,
+    url: (base: string, key: string) => `${withSlash(base)}${base.includes('/browse') ? '' : 'browse/'}${key}`,
   },
-  { id: 'linear', keyPattern: TICKET_KEY, url: (base, key) => `${withSlash(base)}${key}` },
+  { id: 'linear', url: (base: string, key: string) => `${withSlash(base)}${key}` },
 ]
 
 export function ticketUrl(options: PluginOptions, key: string): string | undefined {
@@ -71,7 +68,7 @@ export function ticketUrl(options: PluginOptions, key: string): string | undefin
   if (!base) return undefined
 
   const tracker = trackers.find(t => t.id === (text(options, 'tracker').toLowerCase() || 'jira'))
-  if (!tracker?.keyPattern.test(key)) return undefined
+  if (!tracker || !TICKET_KEY.test(key)) return undefined
 
   return tracker.url(base, key)
 }

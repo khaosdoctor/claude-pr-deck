@@ -1,11 +1,11 @@
 import type { Pr, Provider } from '../../types'
-import { hostOf, summaryOf, ticketKey } from './shared'
+import { hostOf, summaryOf, ticketKey, UNKNOWN } from './shared'
 
 // Forgejo and Gitea mark drafts with a title prefix, and newer versions also set `draft`
 const DRAFT_PREFIX = /^(\[(wip|draft)\]|(wip|draft):)/i
 
 // raw API objects as-is, tea is the trust boundary. Review threads and CI are separate
-// endpoints per PR, so they stay unknown: ci NONE, unresolved 0
+// endpoints per PR, so they stay UNKNOWN
 function toPr(node: any): Pr {
   const base = node.base.repo
 
@@ -21,16 +21,9 @@ function toPr(node: any): Pr {
     head: node.head.ref,
     base: node.base.ref,
     isDraft: node.draft === true || DRAFT_PREFIX.test(node.title),
-    review: 'NONE',
     mergeable: node.mergeable === false ? 'CONFLICTING' : 'MERGEABLE',
-    ci: 'NONE',
-    checksPassed: 0,
-    checksTotal: 0,
     reviewRequests: (node.requested_reviewers ?? []).length,
-    // permission unknown, keep offering the review request
-    canRequestReview: true,
-    hasCopilot: false,
-    unresolved: 0,
+    ...UNKNOWN,
     changedFiles: node.changed_files ?? 0,
     additions: node.additions ?? 0,
     deletions: node.deletions ?? 0,

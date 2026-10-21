@@ -11,26 +11,14 @@ type Deps = {
   openPrompts: () => void
 }
 
-const SECTIONS = ['Display', 'Hosts and trackers', 'Commands', 'Prompts']
 // fields not listed here are Display
-const SECTION_OF: Record<string, string> = {
-  providers: 'Hosts and trackers',
-  tracker: 'Hosts and trackers',
-  trackerUrl: 'Hosts and trackers',
-  githubCommand: 'Hosts and trackers',
-  gitlabCommand: 'Hosts and trackers',
-  giteaCommand: 'Hosts and trackers',
-  azdoCommand: 'Hosts and trackers',
-  openCommand: 'Commands',
-  editorCommand: 'Commands',
-  remoteCommand: 'Commands',
-  cloneDir: 'Commands',
-  newSessionCommand: 'Commands',
-  autoRename: 'Commands',
-  sessionName: 'Prompts',
-  fablePrompt: 'Prompts',
-  workPrompt: 'Prompts',
+const SECTIONS: Record<string, string[]> = {
+  Display: [],
+  'Hosts and trackers': ['providers', 'tracker', 'trackerUrl', 'githubCommand', 'gitlabCommand', 'giteaCommand', 'azdoCommand'],
+  Commands: ['openCommand', 'editorCommand', 'remoteCommand', 'cloneDir', 'newSessionCommand', 'autoRename'],
+  Prompts: ['sessionName', 'fablePrompt', 'workPrompt'],
 }
+const sectionOf = (field: string) => Object.keys(SECTIONS).find(section => SECTIONS[section]?.includes(field)) ?? 'Display'
 
 // The /config rows of this plugin, drawn in the pane. A save reloads the module with the new options.
 // a function declaration, so `claude plugin validate` can follow `$` through the import
@@ -54,6 +42,7 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
   const control = (row: ConfigRow) => {
     if (row.isLocked) return <Text dimColor>{String(row.value)} (locked)</Text>
     if (row.kind === 'boolean') {
+      // keys matter here: without one a Button is addressed by its label, and every row shares these labels
       return <Button key={row.key} label={label(row.value ? '● on' : '○ off')} variant={row.value ? 'primary' : undefined} onPress={() => void save(row, !row.value)} />
     }
     if (row.kind === 'choice') {
@@ -82,15 +71,15 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
           <Text bold color="claude">PR DECK CONFIG</Text>
         </Box>
         <Box justifyContent="center" flexWrap="wrap" columnGap={1}>
-          <Button key="back" label={label('← Back')} onPress={back} />
-          <Button key="open-claude" label={label('⚙ Open in Claude /config')} onPress={() => void openInClaude()} />
-          <Button key="open-file" label={label('✎ Open file')} onPress={() => void openSettings()} />
-          <Button key="open-ignored" plain dimColor label={label('✎ open ignored list')} onPress={openIgnored} />
-          <Button key="open-prompts" plain dimColor label={label('✎ open prompts file')} onPress={openPrompts} />
+          <Button label={label('← Back')} onPress={back} />
+          <Button label={label('⚙ Open in Claude /config')} onPress={() => void openInClaude()} />
+          <Button label={label('✎ Open file')} onPress={() => void openSettings()} />
+          <Button plain dimColor label={label('✎ open ignored list')} onPress={openIgnored} />
+          <Button plain dimColor label={label('✎ open prompts file')} onPress={openPrompts} />
         </Box>
       </Box>
-      {SECTIONS.map(section => {
-        const mine = rows.filter(row => (SECTION_OF[row.key.slice(prefix.length)] ?? 'Display') === section)
+      {Object.keys(SECTIONS).map(section => {
+        const mine = rows.filter(row => sectionOf(row.key.slice(prefix.length)) === section)
         return (
           mine.length > 0 && (
             <Box key={section} flexDirection="column" marginTop={1}>

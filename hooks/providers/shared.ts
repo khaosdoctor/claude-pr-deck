@@ -27,6 +27,21 @@ export function summaryOf(body: string, max = Infinity): string {
   return sentence.length > max ? `${sentence.slice(0, max - 1).trimEnd()}…` : sentence
 }
 
+// What a host that does not report CI, review threads, line counts or permissions leaves at its neutral value.
+// canRequestReview stays true because the permission is unknown, so the review request is still offered.
+export const UNKNOWN = {
+  review: 'NONE',
+  ci: 'NONE',
+  checksPassed: 0,
+  checksTotal: 0,
+  canRequestReview: true,
+  hasCopilot: false,
+  unresolved: 0,
+  changedFiles: 0,
+  additions: 0,
+  deletions: 0,
+}
+
 // hostname of an http(s) URL; the engine has no URL global
 export function hostOf(url: string): string {
   return url.match(/^https?:\/\/(?:[^@/]+@)?([^/:]+)/i)?.[1]?.toLowerCase() ?? ''

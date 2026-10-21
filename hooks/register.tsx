@@ -4,7 +4,6 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { GroupBy, Pr, PromptsFile, Snapshot, Stack, View } from '../types'
 import { configScreen } from './config-screen'
 import { parseJsonc } from './jsonc'
-import type { Action } from './prs'
 import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
@@ -26,10 +25,7 @@ const view = atom({ plugin: 'pr-deck', key: 'view' } as const, 'list' as View)
 const prompts = atom({ plugin: 'pr-deck', key: 'prompts' } as const, { map: {} } as PromptsFile)
 // options come as string | number | boolean | string[]; the command and path ones are strings
 const str = (value: unknown) => (typeof value === 'string' ? value : '')
-const flipIn =(list: string[], item: string) => (list.includes(item) ? list.filter(x => x !== item) : [...list, item])
-const NEXT_GROUP: Record<GroupBy, GroupBy> = { status: 'none', none: 'status' }
-// statuses in the order they need attention
-const STATUS_ORDER = ['✗ broken', '✗ conflicts', '● needs you', '○ waiting', '✓ approved']
+// listed in the order the statuses need attention
 const STATUS_COLOR: Record<string, string> = {
   '✗ broken': 'error',
   '✗ conflicts': 'error',
@@ -37,24 +33,22 @@ const STATUS_COLOR: Record<string, string> = {
   '○ waiting': 'suggestion',
   '✓ approved': 'success',
 }
+const STATUS_ORDER = Object.keys(STATUS_COLOR)
+const colorOfStatus = (status: string) => STATUS_COLOR[status] ?? 'suggestion'
 
 // the statuses a move button cycles through after auto, in order
 const MOVES = ['○ waiting', '● needs you', '✓ approved']
 // undefined past the last one means back to auto
 const nextMove = (current: string | undefined) => MOVES[MOVES.indexOf(current ?? '') + 1]
 
-const configPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? ''}/.config/pr-deck.json`
+const configFile = async ($: EngineInterface, name: string) => `${(await $.env.get('HOME')) ?? ''}/.config/${name}`
 
 // The config file is the source of truth; edits to it apply on the next refresh.
 async function loadConfig($: EngineInterface) {
-  const text = await $.fs.read(await configPath($)).catch(() => '{}')
-  const parsed = (() => {
-    try {
-      return JSON.parse(text) as { ignored?: unknown; overrides?: unknown }
-    } catch {
-      return {}
-    }
-  })()
+  const parsed: { ignored?: unknown; overrides?: unknown } = await $.fs
+    .read(await configFile($, 'pr-deck.json'))
+    .then(JSON.parse)
+    .catch(() => ({}))
   const list = Array.isArray(parsed.ignored) ? parsed.ignored.filter((x): x is string => typeof x === 'string') : []
   await update($, ignored, () => list.map(x => x.toLowerCase()))
   const stored = typeof parsed.overrides === 'object' && parsed.overrides !== null ? Object.entries(parsed.overrides) : []
@@ -62,10 +56,8 @@ async function loadConfig($: EngineInterface) {
 }
 
 // A separate file from pr-deck.json: the mod only reads it, so it can keep the user's comments.
-const promptsPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? ''}/.config/pr-deck.prompts.jsonc`
-
 async function loadPrompts($: EngineInterface) {
-  const path = await promptsPath($)
+  const path = await configFile($, 'pr-deck.prompts.jsonc')
   if (!(await $.fs.exists(path))) return update($, prompts, () => ({ map: {} }))
   try {
     const map = toStatePrompts(parseJsonc(await $.fs.read(path)))
@@ -81,7 +73,7 @@ async function saveConfig($: EngineInterface) {
   // overrides of PRs that are gone are dropped; before the first fetch there is nothing to compare with
   const kept = Object.entries(await read($, overrides)).filter(([url]) => !snap || urls.has(url))
   const config = { ignored: await read($, ignored), overrides: Object.fromEntries(kept) }
-  await $.fs.write(await configPath($), `${JSON.stringify(config, null, 2)}\n`)
+  await $.fs.write(await configFile($, 'pr-deck.json'), `${JSON.stringify(config, null, 2)}\n`)
 }
 
 // undefined puts the PR back to auto
@@ -96,16 +88,9 @@ async function saveIgnored($: EngineInterface, list: string[]) {
   await saveConfig($)
 }
 
-async function openConfig($: EngineInterface, options: PluginOptions) {
-  const path = await configPath($)
-  if (!(await $.fs.exists(path))) await saveConfig($)
-  await run($, str(options.editorCommand), { path })
-}
-
-// the file is only created here, with every state as a commented-out block
-async function openPrompts($: EngineInterface, options: PluginOptions) {
-  const path = await promptsPath($)
-  if (!(await $.fs.exists(path))) await $.fs.write(path, promptsTemplate())
+async function openFile($: EngineInterface, options: PluginOptions, name: string, create: (path: string) => Promise<unknown>) {
+  const path = await configFile($, name)
+  if (!(await $.fs.exists(path))) await create(path)
   await run($, str(options.editorCommand), { path })
 }
 
@@ -155,13 +140,13 @@ function reviewLine(pr: Pr): { text: string; color: string } {
   return { text: 'review needed', color: 'suggestion' }
 }
 
-// Card colour and the status in its top-right corner.
-function tone(pr: Pr, action: Action): { color: string; status: string } {
-  if (pr.ci === 'FAILURE' || pr.ci === 'ERROR') return { color: 'error', status: '✗ broken' }
-  if (pr.mergeable === 'CONFLICTING') return { color: 'error', status: '✗ conflicts' }
-  if (action.prompt) return { color: 'warning', status: '● needs you' }
-  if (pr.review === 'APPROVED') return { color: 'success', status: '✓ approved' }
-  return { color: 'suggestion', status: '○ waiting' }
+// The status in a card's top-right corner, from the PR's own state.
+function ownStatus(pr: Pr, needsMe: boolean) {
+  if (pr.ci === 'FAILURE' || pr.ci === 'ERROR') return '✗ broken'
+  if (pr.mergeable === 'CONFLICTING') return '✗ conflicts'
+  if (needsMe) return '● needs you'
+  if (pr.review === 'APPROVED') return '✓ approved'
+  return '○ waiting'
 }
 
 // Each repo (or PR, for random card colours) gets a theme colour picked from its name, so it keeps the same one across refreshes and filters.
@@ -183,7 +168,6 @@ export const register: Register = (on, options) => {
   const label = labelFor(options.buttonStyle)
   // the option is only the atom's starting value, a toggle sticks until the session state resets
   const groupBy = atom({ plugin: 'pr-deck', key: 'groupBy' } as const, (options.defaultGroup === 'none' ? 'none' : 'status') as GroupBy)
-  const refreshMs = (Number(options.refreshMinutes) || 2) * 60 * 1000
   const isAttention = !['status', 'repo', 'random'].includes(str(options.cardColors))
   const cardModes = ['attention', 'status', 'repo', 'random']
   const cardMode = isAttention ? 'attention' : str(options.cardColors)
@@ -197,7 +181,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane' })
     void refresh($, options)
-    $.clock.every(refreshMs, () => void refresh($, options))
+    $.clock.every((Number(options.refreshMinutes) || 2) * 60 * 1000,() => void refresh($, options))
     // session.start also fires on a reload, so this reopens a pane the person closed then; unfocused so the prompt keeps the cursor
     if (options.openOnStart === true) void $.ui.open({ id: PANE, title: 'Pull requests' })
 
@@ -216,8 +200,14 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = ui
     // mobile has no Input element, so it keeps the list
     if ('Input' in ui && (await read($, view)) === 'config') {
-      const back = () => void update($, view, () => 'list')
-      return configScreen($, ui, { options, label, back, openIgnored: () => void openConfig($, options), openPrompts: () => void openPrompts($, options) })
+      return configScreen($, ui, {
+        options,
+        label,
+        back: () => void update($, view, () => 'list'),
+        openIgnored: () => void openFile($, options, 'pr-deck.json', () => saveConfig($)),
+        // the file is only created here, with every state as a commented-out block
+        openPrompts: () => void openFile($, options, 'pr-deck.prompts.jsonc', path => $.fs.write(path, promptsTemplate())),
+      })
     }
     const snap = await read($, snapshot)
 
@@ -229,27 +219,26 @@ export const register: Register = (on, options) => {
     const isIgnoredOpen = await read($, showIgnored)
     const visible = snap.prs.filter(pr => !ignoredList.includes(pr.fullName))
     const prs = isAll ? visible : visible.filter(pr => pr.fullName === snap.project)
-    const fullNameOf = (repo: string) => snap.prs.find(pr => pr.repo === repo)?.fullName ?? repo
     const toggle = () => update($, showAll, value => !value)
+    const fold = (id: string) => update($, collapsed, list => (list.includes(id) ? list.filter(x => x !== id) : [...list, id]))
     const stacks = toStacks(prs)
     const rank = (key: string) => STATUS_ORDER.indexOf(key)
     const manual = await read($, overrides)
     const { map: statePrompts, error: promptsError } = await read($, prompts)
     // the one place a PR's status, colour and "needs you" come from: the person's pick when there is one, else its own
     const statusFor = (pr: Pr, i: number) => {
-      const action = nextAction(pr, i === 0, statePrompts)
+      const hasPrompt = Boolean(nextAction(pr, i === 0, statePrompts).prompt)
       const picked = manual[pr.url]
-      if (!picked) return { ...tone(pr, action), needsMe: Boolean(action.prompt), isManual: false }
-      return { color: STATUS_COLOR[picked] ?? 'suggestion', status: picked, needsMe: picked === '● needs you', isManual: true }
+      const status = picked ?? ownStatus(pr, hasPrompt)
+      return { color: colorOfStatus(status), status, needsMe: picked ? picked === '● needs you' : hasPrompt, isManual: Boolean(picked) }
     }
-    const needsYouAt = (pr: Pr, i: number) => statusFor(pr, i).needsMe
     const statusOf = (pr: Pr, i: number) => statusFor(pr, i).status
     const moves = stacks
-      .flatMap(stack => stack.prs.map((pr, i) => ({ pr, i })).filter(({ pr, i }) => needsYouAt(pr, i)))
+      .flatMap(stack => stack.prs.map((pr, i) => ({ pr, i })).filter(({ pr, i }) => statusFor(pr, i).needsMe))
       .sort((a, b) => rank(statusOf(a.pr, a.i)) - rank(statusOf(b.pr, b.i)))
     const pinMoves = options.pinYourMove !== false && moves.length > 0
     // a stack where every PR needs you moves to Your move whole; a stack where only some do stays intact in its repo and those PRs show in both places
-    const sections = pinMoves ? stacks.filter(s => !s.prs.every(needsYouAt)) : stacks
+    const sections = pinMoves ? stacks.filter(s => !s.prs.every((pr, i) => statusFor(pr, i).needsMe)) : stacks
     const repos = [...new Set(sections.map(s => s.repo))]
     // numbered by bottom PR so a stack keeps its number when grouping changes
     const stackNumber = (stack: Stack) =>
@@ -258,8 +247,6 @@ export const register: Register = (on, options) => {
         .map(s => s.prs[0]?.number ?? 0)
         .sort((a, b) => a - b)
         .indexOf(stack.prs[0]?.number ?? 0) + 1
-    const needsYou = moves.length
-    const updated = new Date(snap.updatedAt).toTimeString().slice(0, 5)
     // border, padding, "#1234 ", the stack marker and the status take ~28 columns
     const titleRoom = Math.max(20, (e.viewport?.columns ?? 80) - 28)
     const submit = (text: string) => void $.prompt.submit({ text })
@@ -303,7 +290,6 @@ export const register: Register = (on, options) => {
       if (!bottom || grouping === 'none') return ''
       return statusOf(bottom, 0)
     }
-    const groupColor = (key: string) => STATUS_COLOR[key] ?? 'suggestion'
     // fold levels, each adding to the one below: 1 cards, 2 status groups and stacks, 3 repos and Your move
     const startFolded = options.startCollapsed === true
     const cardIds = prs.map(pr => `pr:${pr.url}`)
@@ -331,6 +317,13 @@ export const register: Register = (on, options) => {
       ])
     // a level with nothing to fold is skipped, or the press would change nothing; past the last level it wraps to all open
     const collapseTo = [1, 2, 3].find(n => n > foldLevel && levelSize[n]) ?? 0
+    const statusHeader = (statusId: string, status: string, count: number) => (
+      <Button key={statusId} plain onPress={() => fold(statusId)}>
+        <Text bold color={colorOfStatus(status)}>
+          {folded.has(statusId) ? '▸' : '▾'} {status} <Text dimColor>{count}</Text>
+        </Text>
+      </Button>
+    )
     // place: 'move' when drawn in Your move, since the same PR can also sit in its repo section
     const card = (pr: Pr, i: number, isStack: boolean, place = '') => {
       const action = nextAction(pr, i === 0, statePrompts)
@@ -345,12 +338,11 @@ export const register: Register = (on, options) => {
       // the same PR can be drawn twice (Your move and its repo), so button keys carry the place
       const key = (name: string) => `${name}:${place}${pr.url}`
       const ticketLink = pr.ticket ? ticketUrl(options, pr.ticket) : undefined
-      // the list holds PRs toggled away from the startCollapsed default
-      const isPrFolded = folded.has(foldKey) !== (options.startCollapsed === true)
+      const isPrFolded = folded.has(foldKey) !== startFolded
       const titleRow = (
         <Box justifyContent="space-between">
           <Box flexShrink={1}>
-            <Button key={key('fold')} plain label={isPrFolded ? '▸' : '▾'} onPress={() => update($, collapsed, list => flipIn(list, foldKey))} />
+            <Button key={key('fold')} plain label={isPrFolded ? '▸' : '▾'} onPress={() => fold(foldKey)} />
             <Text> </Text>
             {isStack && <Text color={color}>{i === 0 ? '◆ ' : '◇ '}</Text>}
             <Button key={key('pr')} plain label={`#${pr.number}`} onPress={() => open(pr.url)} />
@@ -453,13 +445,13 @@ export const register: Register = (on, options) => {
                 PULL REQUESTS
               </Text>
               <Text bold> · {isAll ? 'ALL REPOS' : snap.project?.toUpperCase()} · {prs.length} OPEN · </Text>
-              <Text bold color="warning">{needsYou} NEED YOU</Text>
-              <Text dimColor> · updated {updated}</Text>
+              <Text bold color="warning">{moves.length} NEED YOU</Text>
+              <Text dimColor> · updated {new Date(snap.updatedAt).toTimeString().slice(0, 5)}</Text>
             </Text>
           </Box>
           <Box justifyContent="center" flexWrap="wrap" columnGap={1}>
             {snap.project && <Button key="scope" label={label(isAll ? '◧ This repo' : '◨ All')} onPress={toggle} />}
-            <Button key="group" label={label(`⊞ ${grouping}`)} onPress={() => update($, groupBy, () => NEXT_GROUP[grouping])} />
+            <Button key="group" label={label(`⊞ ${grouping}`)} onPress={() => update($, groupBy, () => (grouping === 'none' ? 'status' : 'none'))} />
             <Button
               key="colors"
               label={label(`◐ ${cardMode}`)}
@@ -485,7 +477,7 @@ export const register: Register = (on, options) => {
         )}
         {pinMoves && (
           <Box flexDirection="column" marginTop={1}>
-            <Button key={YOUR_MOVE} plain onPress={() => update($, collapsed, list => flipIn(list, YOUR_MOVE))}>
+            <Button key={YOUR_MOVE} plain onPress={() => fold(YOUR_MOVE)}>
               <Text color="warning">{folded.has(YOUR_MOVE) ? '▸' : '▾'} </Text>
               <Text bold color="inverseText" backgroundColor="warning"> ● YOUR MOVE </Text>{' '}
               <Text dimColor>{moves.length}</Text>
@@ -509,14 +501,7 @@ export const register: Register = (on, options) => {
                       const isGroupFolded = key !== '' && folded.has(statusId)
                       return (
                         <Box key={`move:${repo}:${key}`} flexDirection="column">
-                          {key && (
-                            <Button key={statusId} plain onPress={() => update($, collapsed, list => flipIn(list, statusId))}>
-                              <Text bold color={groupColor(key)}>
-                                {isGroupFolded ? '▸' : '▾'} {key}{' '}
-                                <Text dimColor>{mine.filter(m => statusOf(m.pr, m.i) === key).length}</Text>
-                              </Text>
-                            </Button>
-                          )}
+                          {key && statusHeader(statusId, key, mine.filter(m => statusOf(m.pr, m.i) === key).length)}
                           {!isGroupFolded &&
                             mine.filter(m => !key || statusOf(m.pr, m.i) === key).map(({ pr, i }) => card(pr, i, false, 'move:'))}
                         </Box>
@@ -530,7 +515,7 @@ export const register: Register = (on, options) => {
         {repos.map(repo => (
           <Box key={repo} flexDirection="column" marginTop={1}>
             <Box>
-              <Button key={`repo:${repo}`} plain onPress={() => update($, collapsed, list => flipIn(list, repo))}>
+              <Button key={`repo:${repo}`} plain onPress={() => fold(repo)}>
                 <Text bold size="title" color="inverseText" backgroundColor={repoColor(repo)}>
                   {' '}
                   {folded.has(repo) ? '▸' : '▾'} {repo.toUpperCase()}{' '}
@@ -543,7 +528,7 @@ export const register: Register = (on, options) => {
                 plain
                 dimColor
                 label="⊘ ignore"
-                onPress={() => saveIgnored($, [...ignoredList, fullNameOf(repo)])}
+                onPress={() => saveIgnored($, [...ignoredList, snap.prs.find(pr => pr.repo === repo)?.fullName ?? repo])}
               />
             </Box>
             {/* viewport is the whole screen, not the pane: draw a long rule and clip it to one row of the pane's width */}
@@ -559,27 +544,17 @@ export const register: Register = (on, options) => {
                 const isGroupFolded = key !== '' && folded.has(statusId)
                 return (
                   <Box key={`${repo}:${key}`} flexDirection="column" marginTop={1}>
-                    {key && (
-                      <Button key={statusId} plain onPress={() => update($, collapsed, list => flipIn(list, statusId))}>
-                        <Text bold color={groupColor(key)}>
-                          {isGroupFolded ? '▸' : '▾'} {key} <Text dimColor>{group.reduce((n, s) => n + s.prs.length, 0)}</Text>
-                        </Text>
-                      </Button>
-                    )}
+                    {key && statusHeader(statusId, key, group.reduce((n, s) => n + s.prs.length, 0))}
                     {!isGroupFolded && group.map(stack => {
                       const isStack = stack.prs.length > 1
                       // collapsed keys share one list with repos; stack keys are prefixed so they never clash
                       const stackId = `stack:${stack.prs[0]?.url}`
                       const isFolded = isStack && folded.has(stackId)
-                      const top = stack.prs[stack.prs.length - 1]
+                      const top = stack.prs.at(-1)
                       return (
                         <Box key={`${repo}:${stack.prs[0]?.head}`} flexDirection="column">
                           {isStack && (
-                            <Button
-                              key={`stack:${stackId}`}
-                              plain
-                              onPress={() => update($, collapsed, list => flipIn(list, stackId))}
-                            >
+                            <Button key={`stack:${stackId}`} plain onPress={() => fold(stackId)}>
                               <Text color="claude">
                                 {isFolded ? '▸' : '▾'} stack #{stackNumber(stack)} on {stack.base}
                               </Text>

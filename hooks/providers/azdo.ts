@@ -1,5 +1,5 @@
 import type { Pr, Provider } from '../../types'
-import { hostOf, repoFromRemote, summaryOf, ticketKey } from './shared'
+import { hostOf, repoFromRemote, summaryOf, ticketKey, UNKNOWN } from './shared'
 
 const branchOf = (ref: string) => ref.replace(/^refs\/heads\//, '')
 
@@ -14,7 +14,7 @@ function reviewOf(votes: number[]): string {
 const MERGEABLE: Record<string, string> = { succeeded: 'MERGEABLE', conflicts: 'CONFLICTING' }
 
 // raw az objects as-is, az is the trust boundary. Build results and comment threads live
-// behind other calls, so ci stays NONE, unresolved 0, and line counts 0
+// behind other calls, so the rest stays UNKNOWN
 function toPr(node: any): Pr {
   const repository = node.repository
   const head = branchOf(node.sourceRefName)
@@ -32,19 +32,10 @@ function toPr(node: any): Pr {
     head,
     base: branchOf(node.targetRefName),
     isDraft: node.isDraft === true,
-    review: reviewOf(votes),
     mergeable: MERGEABLE[node.mergeStatus] ?? 'UNKNOWN',
-    ci: 'NONE',
-    checksPassed: 0,
-    checksTotal: 0,
     reviewRequests: votes.filter(vote => vote === 0).length,
-    // permission unknown, keep offering the review request
-    canRequestReview: true,
-    hasCopilot: false,
-    unresolved: 0,
-    changedFiles: 0,
-    additions: 0,
-    deletions: 0,
+    ...UNKNOWN,
+    review: reviewOf(votes),
     ticket: ticketKey(`${node.title} ${head}`),
     summary: summaryOf(node.description ?? ''),
   }
