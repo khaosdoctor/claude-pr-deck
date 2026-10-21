@@ -8,6 +8,7 @@ type Deps = {
   label: (text: string) => string
   back: () => void
   openIgnored: () => void
+  openPrompts: () => void
 }
 
 const SECTIONS = ['Display', 'Hosts and trackers', 'Commands', 'Prompts']
@@ -33,7 +34,7 @@ const SECTION_OF: Record<string, string> = {
 
 // The /config rows of this plugin, drawn in the pane. A save reloads the module with the new options.
 // a function declaration, so `claude plugin validate` can follow `$` through the import
-export async function configScreen($: EngineInterface, { Box, Text, Button }: Elements['terminal' | 'desktop' | 'vscode'], { options, label, back, openIgnored }: Deps) {
+export async function configScreen($: EngineInterface, { Box, Text, Button }: Elements['terminal' | 'desktop' | 'vscode'], { options, label, back, openIgnored, openPrompts }: Deps) {
   const prefix = `${$.plugin.name}.`
   const rows = (await $.config.list()).filter(row => row.key.startsWith(prefix))
 
@@ -85,6 +86,7 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
           <Button key="open-claude" label={label('⚙ Open in Claude /config')} onPress={() => void openInClaude()} />
           <Button key="open-file" label={label('✎ Open file')} onPress={() => void openSettings()} />
           <Button key="open-ignored" plain dimColor label={label('✎ open ignored list')} onPress={openIgnored} />
+          <Button key="open-prompts" plain dimColor label={label('✎ open prompts file')} onPress={openPrompts} />
         </Box>
       </Box>
       {SECTIONS.map(section => {

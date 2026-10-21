@@ -1,7 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
-import type { Pr } from '../types'
-import { nextAction, summaryOf, toStacks, workAction } from './prs'
+import type { ActionState, Pr, StatePrompts } from '../types'
+import { parseJsonc, stripJsonComments } from './jsonc'
+import { nextAction, promptsTemplate, STATES, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
 import { repoFromRemote, ticketUrl } from './providers'
 import { azdo } from './providers/azdo'
 import { gitea } from './providers/gitea'
@@ -158,10 +159,77 @@ test('next action follows CI, review and stack position', () => {
   expect(nextAction(pr({ ci: 'FAILURE' }), true).label).toBe('Fix CI')
   expect(nextAction(pr({ unresolved: 2 }), true).label).toBe('Address comments')
   expect(nextAction(pr({ reviewRequests: 0 }), true).label).toBe('Request a review')
-  expect(nextAction(pr({ reviewRequests: 0, canRequestReview: false }), true)).toEqual({ label: 'Wait for maintainers' })
+  expect(nextAction(pr({ reviewRequests: 0, canRequestReview: false }), true)).toEqual({ state: 'maintainers', label: 'Wait for maintainers' })
   expect(nextAction(pr({ review: 'APPROVED' }), true).label).toBe('Merge')
   expect(nextAction(pr({ review: 'APPROVED' }), false).label).toBe('Wait for stack below')
   expect(nextAction(pr({}), true).prompt).toBeUndefined()
+})
+
+test('next action reports the state of each branch', () => {
+  const cases: [Partial<Pr>, boolean, ActionState][] = [
+    [{ isDraft: true }, true, 'draft'],
+    [{ ci: 'ERROR' }, true, 'ci-failed'],
+    [{ mergeable: 'CONFLICTING' }, true, 'conflicts'],
+    [{ review: 'CHANGES_REQUESTED' }, true, 'comments'],
+    [{ review: 'APPROVED' }, true, 'mergeable'],
+    [{ review: 'APPROVED' }, false, 'stack-below'],
+    [{ ci: 'PENDING' }, true, 'ci-running'],
+    [{ reviewRequests: 0 }, true, 'no-reviewers'],
+    [{ reviewRequests: 0, canRequestReview: false }, true, 'maintainers'],
+    [{}, true, 'in-review'],
+  ]
+  for (const [over, isBottom, state] of cases) expect(nextAction(pr(over), isBottom).state).toBe(state)
+  expect(cases.map(([, , state]) => state)).toEqual(STATES)
+})
+
+test('a template from the prompts file overrides next and work for its state only', () => {
+  const prompts: StatePrompts = {
+    'ci-failed': { next: 'Fix {url} on {branch} ({state}, {cli})', work: 'Work on #{pr}: {readyHint}' },
+    'in-review': { next: 'Nudge reviewers of #{pr}' },
+  }
+  const failing = pr({ ci: 'FAILURE', head: 'feat/x', number: 7 })
+  const action = nextAction(failing, true, prompts)
+  expect(action.prompt).toBe('Fix https://github.com/acme/api/pull/1 on feat/x (ci-failed, gh)')
+  expect(workAction(failing, action, false, 'option', prompts).prompt).toBe('Work on #7: gh pr ready')
+
+  // other states keep the defaults; the workPrompt option still applies where the file has no work
+  const draft = pr({ isDraft: true })
+  expect(nextAction(draft, true, prompts).prompt).toBe(nextAction(draft, true).prompt)
+  expect(workAction(draft, nextAction(draft, true, prompts), false, 'option {pr}', prompts).prompt).toBe('option 1')
+
+  // a next on a wait-only state turns the wait into a pressable action
+  expect(nextAction(pr({}), true, prompts)).toEqual({ state: 'in-review', label: 'Wait for review', prompt: 'Nudge reviewers of #1' })
+  expect(nextAction(pr({}), true, { 'in-review': { next: '  ' } }).prompt).toBeUndefined()
+})
+
+test('the prompts file keeps known states and text fields only', () => {
+  expect(toStatePrompts({ draft: { next: 'a', work: 3 }, nope: { next: 'b' }, conflicts: 'x' })).toEqual({ draft: { next: 'a', work: undefined } })
+  expect(() => toStatePrompts([])).toThrow('expected an object')
+})
+
+test('the new prompts file template parses to nothing and lists every state', () => {
+  const template = promptsTemplate()
+  expect(parseJsonc(template)).toEqual({})
+  for (const state of STATES) expect(template).toContain(`// "${state}": {`)
+  // uncommenting a block gives a valid file that matches the defaults
+  const block = template.slice(template.indexOf('// "ci-failed"'), template.indexOf('// conflicts:'))
+  const parsed = toStatePrompts(parseJsonc(`{\n${block.replaceAll('// ', '')}\n}`))
+  expect(parsed['ci-failed']?.next).toContain('CI is failing on PR {url}')
+  expect(parsed['ci-failed']?.work).toContain('Load context for {url}')
+})
+
+test('strips comments outside strings and trailing commas', () => {
+  expect(parseJsonc('{ "a": 1, // note\n "b": [1, 2,], /* block\n over lines */ "c": "x", }')).toEqual({ a: 1, b: [1, 2], c: 'x' })
+  expect(parseJsonc('{ "url": "https://x.test/a", "s": "a // b /* c */", "q": "say \\"//\\" // not a comment" }')).toEqual({
+    url: 'https://x.test/a',
+    s: 'a // b /* c */',
+    q: 'say "//" // not a comment',
+  })
+  expect(parseJsonc('{ "t": "a,}" , "u": "[1,]" }')).toEqual({ t: 'a,}', u: '[1,]' })
+  expect(parseJsonc('// only a comment\n{}')).toEqual({})
+  // the text keeps its lines, so a JSON error points at the right place
+  expect(stripJsonComments('1 /* a\nb */ 2').split('\n')).toHaveLength(2)
+  expect(() => parseJsonc('{ "a": }')).toThrow()
 })
 
 test('work button offers a Copilot pass only when green, idle and not asked yet', () => {
@@ -172,7 +240,7 @@ test('work button offers a Copilot pass only when green, idle and not asked yet'
   expect(workAction(asked, nextAction(asked, true), true).label).toBe('❯ Work on it')
 
   const commented = pr({ unresolved: 1 })
-  expect(workAction(commented, { label: 'Wait for review' }, true).label).toBe('❯ Work on it')
+  expect(workAction(commented, { state: 'in-review', label: 'Wait for review' }, true).label).toBe('❯ Work on it')
 
   const running = pr({ ci: 'PENDING' })
   expect(workAction(running, nextAction(running, true), true).label).toBe('❯ Work on it')
@@ -191,8 +259,9 @@ test('Copilot pass is off when the user disables it or the host has no Copilot',
 
 test('a custom work template fills the placeholders, blank falls back to the default', () => {
   const custom = pr({ number: 42, head: 'feat/x' })
-  expect(workAction(custom, { label: 'Wait for review' }, false, 'Review #{pr} on {branch} {nope}').prompt).toBe('Review #42 on feat/x {nope}')
-  expect(workAction(custom, { label: 'Wait for review' }, false, '  ').prompt).toContain('check out branch feat/x')
+  const waiting = { state: 'in-review', label: 'Wait for review' } as const
+  expect(workAction(custom, waiting, false, 'Review #{pr} on {branch} {nope}').prompt).toBe('Review #42 on feat/x {nope}')
+  expect(workAction(custom, waiting, false, '  ').prompt).toContain('check out branch feat/x')
 })
 
 test('prompts use the CLI of the PR host', () => {

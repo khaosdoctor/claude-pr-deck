@@ -50,8 +50,17 @@ export type Stack ={ repo: string; base: string; prs: Pr[] }
 // project: owner/repo of the session's git remote, absent outside a repo
 export type Snapshot = { prs: Pr[]; updatedAt: number; project?: string; error?: string }
 
+// What a PR needs next, first match wins; see STATE_INFO in hooks/prs.ts
+export type ActionState = 'draft' | 'ci-failed' | 'conflicts' | 'comments' | 'mergeable' | 'stack-below' | 'ci-running' | 'no-reviewers' | 'maintainers' | 'in-review'
+
+// ~/.config/pr-deck.prompts.jsonc: prompt templates per state; a missing state or field keeps the default
+export type StatePrompts = Partial<Record<ActionState, { next?: string; work?: string }>>
+
+// the parsed prompts file, or the reason it could not be read
+export type PromptsFile = { map: StatePrompts; error?: string }
+
 declare module 'claude-code' {
   interface PluginState {
-    'pr-deck': { snapshot: Snapshot | null; showAll: boolean; groupBy: GroupBy; collapsed: string[]; ignored: string[]; overrides: Record<string, string>; showIgnored: boolean; view: View }
+    'pr-deck': { snapshot: Snapshot | null; showAll: boolean; groupBy: GroupBy; collapsed: string[]; ignored: string[]; overrides: Record<string, string>; showIgnored: boolean; view: View; prompts: PromptsFile }
   }
 }

@@ -1,10 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
-import type { GroupBy, Pr, Snapshot, Stack, View } from '../types'
+import type { GroupBy, Pr, PromptsFile, Snapshot, Stack, View } from '../types'
 import { configScreen } from './config-screen'
+import { parseJsonc } from './jsonc'
 import type { Action } from './prs'
-import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, summaryOf, toStacks, workAction } from './prs'
+import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
 import { TERMINALS } from './terminals'
@@ -21,6 +22,8 @@ const ignored = atom({ plugin: 'pr-deck', key: 'ignored' } as const, [] as strin
 const overrides = atom({ plugin: 'pr-deck', key: 'overrides' } as const, {} as Record<string, string>)
 const showIgnored =atom({ plugin: 'pr-deck', key: 'showIgnored' } as const, false)
 const view = atom({ plugin: 'pr-deck', key: 'view' } as const, 'list' as View)
+// the per-state prompt templates from ~/.config/pr-deck.prompts.jsonc, or why it could not be read
+const prompts = atom({ plugin: 'pr-deck', key: 'prompts' } as const, { map: {} } as PromptsFile)
 // options come as string | number | boolean | string[]; the command and path ones are strings
 const str = (value: unknown) => (typeof value === 'string' ? value : '')
 const flipIn =(list: string[], item: string) => (list.includes(item) ? list.filter(x => x !== item) : [...list, item])
@@ -58,6 +61,20 @@ async function loadConfig($: EngineInterface) {
   await update($, overrides, () => Object.fromEntries(stored.filter(([, status]) => MOVES.includes(status))))
 }
 
+// A separate file from pr-deck.json: the mod only reads it, so it can keep the user's comments.
+const promptsPath = async ($: EngineInterface) => `${(await $.env.get('HOME')) ?? ''}/.config/pr-deck.prompts.jsonc`
+
+async function loadPrompts($: EngineInterface) {
+  const path = await promptsPath($)
+  if (!(await $.fs.exists(path))) return update($, prompts, () => ({ map: {} }))
+  try {
+    const map = toStatePrompts(parseJsonc(await $.fs.read(path)))
+    return update($, prompts, () => ({ map }))
+  } catch (error) {
+    return update($, prompts, () => ({ map: {}, error: error instanceof Error ? error.message : String(error) }))
+  }
+}
+
 async function saveConfig($: EngineInterface) {
   const snap = await read($, snapshot)
   const urls = new Set(snap?.prs.map(pr => pr.url))
@@ -85,8 +102,16 @@ async function openConfig($: EngineInterface, options: PluginOptions) {
   await run($, str(options.editorCommand), { path })
 }
 
+// the file is only created here, with every state as a commented-out block
+async function openPrompts($: EngineInterface, options: PluginOptions) {
+  const path = await promptsPath($)
+  if (!(await $.fs.exists(path))) await $.fs.write(path, promptsTemplate())
+  await run($, str(options.editorCommand), { path })
+}
+
 async function refresh($: EngineInterface, options: PluginOptions) {
   await loadConfig($)
+  await loadPrompts($)
   const [{ prs, errors }, remote] = await Promise.all([
     fetchAll($, options),
     run($, str(options.remoteCommand)).catch(() => undefined),
@@ -192,7 +217,7 @@ export const register: Register = (on, options) => {
     // ponytail: mobile has no Input element, so it keeps the list
     if ('Input' in ui && (await read($, view)) === 'config') {
       const back = () => void update($, view, () => 'list')
-      return configScreen($, ui, { options, label, back, openIgnored: () => void openConfig($, options) })
+      return configScreen($, ui, { options, label, back, openIgnored: () => void openConfig($, options), openPrompts: () => void openPrompts($, options) })
     }
     const snap = await read($, snapshot)
 
@@ -209,9 +234,10 @@ export const register: Register = (on, options) => {
     const stacks = toStacks(prs)
     const rank = (key: string) => STATUS_ORDER.indexOf(key)
     const manual = await read($, overrides)
+    const { map: statePrompts, error: promptsError } = await read($, prompts)
     // the one place a PR's status, colour and "needs you" come from: the person's pick when there is one, else its own
     const statusFor = (pr: Pr, i: number) => {
-      const action = nextAction(pr, i === 0)
+      const action = nextAction(pr, i === 0, statePrompts)
       const picked = manual[pr.url]
       if (!picked) return { ...tone(pr, action), needsMe: Boolean(action.prompt), isManual: false }
       return { color: STATUS_COLOR[picked] ?? 'suggestion', status: picked, needsMe: picked === '● needs you', isManual: true }
@@ -280,8 +306,8 @@ export const register: Register = (on, options) => {
     const groupColor = (key: string) => STATUS_COLOR[key] ?? 'suggestion'
     // place: 'move' when drawn in Your move, since the same PR can also sit in its repo section
     const card = (pr: Pr, i: number, isStack: boolean, place = '') => {
-      const action = nextAction(pr, i === 0)
-      const work = workAction(pr, action, options.showCopilotPass !== false, str(options.workPrompt))
+      const action = nextAction(pr, i === 0, statePrompts)
+      const work = workAction(pr, action, options.showCopilotPass !== false, str(options.workPrompt), statePrompts)
       const ci = ciLine(pr)
       const review = reviewLine(pr)
       const { color: statusColor, status, needsMe, isManual } = statusFor(pr, i)
@@ -384,7 +410,7 @@ export const register: Register = (on, options) => {
             )}
             <Button key={key('work')} label={label(work.label)} onPress={() => work.prompt && submit(work.prompt)} />
             <Button key={key('switch')} label={label('⎇ Switch here')} onPress={() => void switchHere(pr)} />
-            <Button key={key('new-session')} label={label('⧉ New session')} onPress={() => void newSession(pr, workAction(pr, action, false, str(options.workPrompt)).prompt ?? '')} />
+            <Button key={key('new-session')} label={label('⧉ New session')} onPress={() => void newSession(pr, workAction(pr, action, false, str(options.workPrompt), statePrompts).prompt ?? '')} />
           </Box>
         </Box>
       )
@@ -422,6 +448,7 @@ export const register: Register = (on, options) => {
         </Box>
         {!snap.project && <Text dimColor>no repo remote in this folder, showing all repos</Text>}
         {snap.error && <Text color="error">fetch failed: {short(snap.error, 200)}</Text>}
+        {promptsError && <Text color="error">prompts file: {short(promptsError, 200)}</Text>}
         {prs.length === 0 && (
           <Box flexDirection="column" borderStyle="round" borderColor="subtle" paddingX={1} marginTop={1}>
             <Text dimColor>No open PRs of yours in {snap.project}.</Text>
