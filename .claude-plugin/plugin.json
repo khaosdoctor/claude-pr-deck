@@ -5,6 +5,7 @@
   "author": { "name": "Lucas Santos", "url": "https://github.com/khaosdoctor" },
   "homepage": "https://github.com/khaosdoctor/claude-pr-list-mod",
   "repository": "https://github.com/khaosdoctor/claude-pr-list-mod",
+  "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {
     "openOnStart": {
