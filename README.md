@@ -1,3 +1,5 @@
+<p align="center"><img src=".claude-plugin/icon.png" alt="pr-deck icon, a deck of cards with a pull request glyph" width="128"></p>
+
 # pr-deck
 
 A Claude Code mod that keeps your open pull requests in a side pane, so you can see what is waiting on you without leaving the session. PRs are grouped by repo, stacked PRs (a PR whose base is another of your branches) draw as a chain, and it reads from GitHub, GitLab, Gitea/Forgejo and Azure DevOps.
