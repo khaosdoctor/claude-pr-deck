@@ -267,34 +267,4 @@ The prompts live in `~/.config/pr-deck.prompts.jsonc`. The file is yours, the mo
 
 ## External integrations
 
-On every refresh the mod writes every PR it picked up to a JSON file, so other tools (a status bar, a script, a notifier) can watch it. The path is the ***State file*** option, `~/.cache/pr-deck/state.json` by default; the folder is created when missing, and an empty value turns the file off. The whole file is rewritten each time, PRs grouped by `owner/repo`, and it includes repos you ignore or that are outside the session's scope.
-
-```json
-{
-  "updatedAt": "2026-10-21T09:30:00.000Z",
-  "repos": {
-    "acme/api": [
-      {
-        "number": 7,
-        "title": "ABC-12 add thing",
-        "url": "https://github.com/acme/api/pull/7",
-        "branch": "feat/x",
-        "base": "main",
-        "provider": "github",
-        "host": "github.com",
-        "draft": false,
-        "ci": "FAILURE",
-        "review": "REVIEW_REQUIRED",
-        "mergeable": "MERGEABLE",
-        "unresolved": 0,
-        "state": "ci-failed",
-        "status": "broken",
-        "needsYou": true,
-        "nextAction": "Fix CI"
-      }
-    ]
-  }
-}
-```
-
-`error` appears next to `updatedAt` when a host failed to load, and `override` appears on a PR whose status you set by hand with ***⇄ move***. `state` is one of the ids in the table under Prompts per state, `nextAction` its button label, and `status` the one the card shows without its symbol: `broken`, `conflicts`, `needs you`, `waiting` or `approved`. `needsYou` is true for the PRs counted in ***NEED YOU***. `ci`, `review` and `mergeable` are the values the card uses, for example `SUCCESS`, `FAILURE`, `PENDING` or `NONE` for `ci`.
+On every refresh the mod writes every PR it picked up and its state to `~/.cache/pr-deck/state.json` (the ***State file*** option), so other tools like a status bar, a script or a notifier can watch that file and act on it. [docs/integrations.md](docs/integrations.md) has the file format and examples of watching it.
