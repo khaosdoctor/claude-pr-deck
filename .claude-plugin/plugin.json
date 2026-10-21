@@ -181,6 +181,18 @@
       "title": "Work on it prompt",
       "description": "Prompt the Work on it button sends and the first prompt of New session; empty uses the default. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
       "default": "Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions."
+    },
+    "watchPrompt": {
+      "type": "string",
+      "title": "Watch prompt",
+      "description": "Prompt the Watch button sends; empty uses the default. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
+      "default": "Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes (wait in the background, e.g. `gh pr checks {pr} --repo {fullName} --watch`), tell me about each change in one line, and stop as soon as CI passes and nothing else needs me."
+    },
+    "stateFile": {
+      "type": "string",
+      "title": "State file",
+      "description": "JSON file rewritten on every refresh with every PR picked up, grouped by repo, for other tools to watch; empty turns it off.",
+      "default": "~/.cache/pr-deck/state.json"
     }
   }
 }

@@ -54,7 +54,7 @@ export type Snapshot = { prs: Pr[]; updatedAt: number; project?: string; error?:
 export type ActionState = 'draft' | 'ci-failed' | 'conflicts' | 'comments' | 'mergeable' | 'stack-below' | 'ci-running' | 'no-reviewers' | 'maintainers' | 'in-review'
 
 // ~/.config/pr-deck.prompts.jsonc: prompt templates per state; a missing state or field keeps the default
-export type StatePrompts = Partial<Record<ActionState, { next?: string; work?: string }>>
+export type StatePrompts = Partial<Record<ActionState, { next?: string; work?: string; watch?: string }>>
 
 // the parsed prompts file, or the reason it could not be read
 export type PromptsFile = { map: StatePrompts; error?: string }

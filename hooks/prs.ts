@@ -60,10 +60,12 @@ export const prVars = (pr: Pr): Record<string, string> => ({
   cli: providerOf(pr.provider).cli,
 })
 
-// Same text as the fablePrompt and workPrompt defaults in plugin.json, used when an option is blank.
+// Same text as the fablePrompt, workPrompt and watchPrompt defaults in plugin.json, used when an option is blank.
 export const DEFAULT_FABLE_PROMPT = "Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}."
 const DEFAULT_WORK_PROMPT =
   'Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.'
+export const DEFAULT_WATCH_PROMPT =
+  'Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes (wait in the background, e.g. `gh pr checks {pr} --repo {fullName} --watch`), tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.'
 
 // Per state: the button label, when it applies (the order of the keys is the order of the checks in stateOf)
 // and the default next-action prompt. States without a prompt only wait, unless the prompts file gives them one.
@@ -135,8 +137,12 @@ export function toStatePrompts(parsed: unknown): StatePrompts {
   for (const state of STATES) {
     const entry: unknown = (parsed as Record<string, unknown>)[state]
     if (typeof entry !== 'object' || entry === null) continue
-    const { next, work } = entry as Record<string, unknown>
-    prompts[state] = { next: typeof next === 'string' ? next : undefined, work: typeof work === 'string' ? work : undefined }
+    const { next, work, watch } = entry as Record<string, unknown>
+    prompts[state] = {
+      next: typeof next === 'string' ? next : undefined,
+      work: typeof work === 'string' ? work : undefined,
+      watch: typeof watch === 'string' ? watch : undefined,
+    }
   }
   return prompts
 }
@@ -151,6 +157,7 @@ export function promptsTemplate(): string {
     'A state with no default next prompt only waits; give it one and the wait becomes a button.',
     '"work" replaces the prompt of the Work on it button and of New session in that state.',
     'Without it the workPrompt option applies, then the built-in default.',
+    '"watch" replaces the prompt of the Watch button in that state; without it the watchPrompt option applies.',
     '',
     'Placeholders: {pr} {number} {url} {title} {branch} {base} {repo} {fullName} {host} {cli} {readyHint} {state}',
   ]
@@ -158,9 +165,48 @@ export function promptsTemplate(): string {
   const blocks = STATES.flatMap(state => {
     const { next, when } = STATE_INFO[state]
     const nextLines = next ? [`  "next": ${JSON.stringify(next)},`] : []
-    return ['', ...[`${state}: ${when}`, `"${state}": {`, ...nextLines, `  "work": ${JSON.stringify(DEFAULT_WORK_PROMPT)}`, '},'].map(comment)]
+    return ['', ...[`${state}: ${when}`, `"${state}": {`, ...nextLines, `  "work": ${JSON.stringify(DEFAULT_WORK_PROMPT)},`, `  "watch": ${JSON.stringify(DEFAULT_WATCH_PROMPT)}`, '},'].map(comment)]
   })
   return [...header.map(comment), '{', ...blocks, '}', ''].join('\n')
+}
+
+// The Watch button prompt: the state's watch template, then the watchPrompt option, then the built-in default.
+export const watchPrompt = (pr: Pr, state: ActionState, template?: string, prompts: StatePrompts = {}) =>
+  plain(prompts[state]?.watch?.trim() || template?.trim() || DEFAULT_WATCH_PROMPT, stateVars(pr, state))
+
+// What a PR shows in the pane: its next action and the status the card prints, which a manual pick replaces.
+export type PrStatus = { action: Action; status: string; needsMe: boolean; isManual: boolean }
+
+// The JSON other tools watch, PRs per owner/repo. Statuses lose their pane glyph ("● needs you" is "needs you").
+export function stateFileOf(prs: Pr[], statusFor: (pr: Pr, isBottom: boolean) => PrStatus, updatedAt: number, error?: string) {
+  const repos: Record<string, object[]> = {}
+  for (const stack of toStacks(prs)) {
+    for (const [i, pr] of stack.prs.entries()) {
+      const { action, status, needsMe, isManual } = statusFor(pr, i === 0)
+      const shown = status.slice(2)
+      const entry = {
+        number: pr.number,
+        title: pr.title,
+        url: pr.url,
+        branch: pr.head,
+        base: pr.base,
+        provider: pr.provider,
+        host: pr.host,
+        draft: pr.isDraft,
+        ci: pr.ci,
+        review: pr.review,
+        mergeable: pr.mergeable,
+        unresolved: pr.unresolved,
+        state: action.state,
+        status: shown,
+        needsYou: needsMe,
+        nextAction: action.label,
+        override: isManual ? shown : undefined,
+      }
+      repos[pr.fullName] = [...(repos[pr.fullName] ?? []), entry]
+    }
+  }
+  return { updatedAt: new Date(updatedAt).toISOString(), error: error || undefined, repos }
 }
 
 // The third button: once the PR is green and only waiting on people, put Copilot on it

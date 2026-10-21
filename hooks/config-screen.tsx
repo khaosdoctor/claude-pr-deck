@@ -16,8 +16,8 @@ type Deps = {
 const SECTIONS: Record<string, string[]> = {
   Display: [],
   'Hosts and trackers': ['providers', 'tracker', 'trackerUrl', 'githubCommand', 'gitlabCommand', 'giteaCommand', 'azdoCommand'],
-  Commands: ['openCommand', 'editorCommand', 'remoteCommand', 'cloneDir', 'newSessionCommand', 'autoRename'],
-  Prompts: ['sessionName', 'fablePrompt', 'workPrompt'],
+  Commands: ['openCommand', 'editorCommand', 'remoteCommand', 'cloneDir', 'newSessionCommand', 'autoRename', 'stateFile'],
+  Prompts: ['sessionName', 'fablePrompt', 'workPrompt', 'watchPrompt'],
 }
 const sectionOf = (field: string) => Object.keys(SECTIONS).find(section => SECTIONS[section]?.includes(field)) ?? 'Display'
 

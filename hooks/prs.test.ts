@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { ActionState, Pr, StatePrompts } from '../types'
 import { parseJsonc, stripJsonComments } from './jsonc'
-import { nextAction, plain, promptsTemplate, STATES, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
+import { nextAction, plain, promptsTemplate, stateFileOf, STATES, summaryOf, toStacks, toStatePrompts, watchPrompt, workAction } from './prs'
 import { repoFromRemote, ticketUrl } from './providers'
 import { azdo } from './providers/azdo'
 import { gitea } from './providers/gitea'
@@ -368,6 +368,37 @@ test('a custom work template fills the placeholders, blank falls back to the def
 
 test('placeholders named like inherited object keys stay as written', () => {
   expect(plain('{constructor} {toString} {pr}', { pr: '7' })).toBe('{constructor} {toString} 7')
+})
+
+test('the state file groups PRs per repo with the pane status and the manual override', () => {
+  const statusFor = (p: Pr, isBottom: boolean) => {
+    const action = nextAction(p, isBottom)
+    const isManual = p.number === 2
+    return { action, status: isManual ? '○ waiting' : action.prompt ? '● needs you' : '○ waiting', needsMe: !isManual && Boolean(action.prompt), isManual }
+  }
+  const state = stateFileOf([pr({ number: 1, ci: 'FAILURE', head: 'a' }), pr({ number: 2, head: 'b', base: 'a' }), pr({ number: 9, fullName: 'acme/web', repo: 'web' })], statusFor, 0, 'gitlab failed')
+
+  expect(state.updatedAt).toBe('1970-01-01T00:00:00.000Z')
+  expect(state.error).toBe('gitlab failed')
+  expect(Object.keys(state.repos)).toEqual(['acme/api', 'acme/web'])
+  expect(state.repos['acme/api']).toEqual([
+    {
+      number: 1, title: 'ABC-1: thing', url: 'https://github.com/acme/api/pull/1', branch: 'a', base: 'main', provider: 'github', host: 'github.com',
+      draft: false, ci: 'FAILURE', review: 'REVIEW_REQUIRED', mergeable: 'MERGEABLE', unresolved: 0,
+      state: 'ci-failed', status: 'needs you', needsYou: true, nextAction: 'Fix CI',
+    },
+    expect.objectContaining({ number: 2, state: 'in-review', status: 'waiting', needsYou: false, override: 'waiting' }),
+  ])
+  expect(stateFileOf([], statusFor, 0)).toEqual({ updatedAt: '1970-01-01T00:00:00.000Z', repos: {} })
+})
+
+test('the watch prompt takes the state template, then the option, then the default', () => {
+  const watched = pr({ number: 5 })
+  expect(watchPrompt(watched, 'in-review')).toContain('gh pr checks 5 --repo acme/api --watch')
+  expect(watchPrompt(watched, 'in-review', 'Watch #{pr}')).toBe('Watch #5')
+  expect(watchPrompt(watched, 'in-review', 'Watch #{pr}', { 'in-review': { watch: 'Poll {url}' } })).toBe('Poll https://github.com/acme/api/pull/1')
+  expect(watchPrompt(watched, 'draft', '  ', { 'in-review': { watch: 'Poll {url}' } })).toContain('Watch https://github.com/acme/api/pull/1 until it is green')
+  expect(toStatePrompts({ draft: { watch: 'w' } })).toEqual({ draft: { watch: 'w' } })
 })
 
 test('prompts use the CLI of the PR host', () => {

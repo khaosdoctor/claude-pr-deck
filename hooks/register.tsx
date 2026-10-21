@@ -1,10 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, ProcessRunResult, Register } from 'claude-code'
 
-import type { GroupBy, Pr, PromptsFile, Snapshot, Stack, View } from '../types'
+import type { GroupBy, Pr, PromptsFile, Snapshot, Stack, StatePrompts, View } from '../types'
 import { configScreen } from './config-screen'
 import { parseJsonc } from './jsonc'
-import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
+import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, stateFileOf, summaryOf, toStacks, toStatePrompts, watchPrompt, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
 import { guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
@@ -108,6 +108,23 @@ async function openFile($: EngineInterface, options: PluginOptions, name: string
   toastFailure($, await run($, str(options.editorCommand), { path }))
 }
 
+// a leading ~ is the home folder
+async function expandHome($: EngineInterface, path: string) {
+  if (path !== '~' && !path.startsWith('~/')) return path
+  return `${(await $.env.get('HOME')) ?? ''}${path.slice(1)}`
+}
+
+// Other tools watch this file; empty stateFile turns it off. $.fs has no rename, so it is a plain write.
+async function writeStateFile($: EngineInterface, options: PluginOptions) {
+  const template = str(options.stateFile).trim()
+  const snap = await read($, snapshot)
+  if (!template || !snap) return
+  const manual = await read($, overrides)
+  const { map } = await read($, prompts)
+  const state = stateFileOf(snap.prs, (pr, isBottom) => resolveStatus(pr, isBottom, manual, map), snap.updatedAt, snap.error)
+  await $.fs.write(await expandHome($, template), `${JSON.stringify(state, null, 2)}\n`)
+}
+
 async function refresh($: EngineInterface, options: PluginOptions) {
   await loadConfig($)
   await loadPrompts($)
@@ -120,6 +137,7 @@ async function refresh($: EngineInterface, options: PluginOptions) {
   const error = errors.join(' · ')
 
   await update($, snapshot, (old): Snapshot => ({ prs: keepFailedHosts(prs, old?.prs ?? [], errors), updatedAt: now, project, error: error || undefined }))
+  await writeStateFile($, options).catch(failure => $.ui.toast(`Could not write the state file: ${short(failure instanceof Error ? failure.message : String(failure), 200)}`))
 }
 
 // the session name for a PR, e.g. pr-3109-worker; empty turns naming off
@@ -130,9 +148,7 @@ const sessionNameOf = (options: PluginOptions, pr: Pr) =>
 async function cloneDirOf($: EngineInterface, options: PluginOptions, pr: Pr) {
   const template = str(options.cloneDir).trim()
   if (!template) return undefined
-  const dir = plain(template, { host: pr.host, ...splitFullName(pr.fullName) })
-  if (dir !== '~' && !dir.startsWith('~/')) return dir
-  return `${(await $.env.get('HOME')) ?? ''}${dir.slice(1)}`
+  return expandHome($, plain(template, { host: pr.host, ...splitFullName(pr.fullName) }))
 }
 
 function ciLine(pr: Pr): { text: string; color: string } {
@@ -158,6 +174,15 @@ function ownStatus(pr: Pr, needsMe: boolean) {
   if (needsMe) return '● needs you'
   if (pr.review === 'APPROVED') return '✓ approved'
   return '○ waiting'
+}
+
+// the one place a PR's status, colour and "needs you" come from: the person's pick when there is one, else its own
+function resolveStatus(pr: Pr, isBottom: boolean, manual: Record<string, string>, statePrompts: StatePrompts) {
+  const action = nextAction(pr, isBottom, statePrompts)
+  const hasPrompt = Boolean(action.prompt)
+  const picked = manual[pr.url]
+  const status = picked ?? ownStatus(pr, hasPrompt)
+  return { action, color: colorOfStatus(status), status, needsMe: picked ? picked === '● needs you' : hasPrompt, isManual: Boolean(picked) }
 }
 
 // Each repo (or PR, for random card colours) gets a theme colour picked from its name, so it keeps the same one across refreshes and filters.
@@ -240,13 +265,7 @@ export const register: Register = (on, options) => {
     const rank = (key: string) => STATUS_ORDER.indexOf(key)
     const manual = await read($, overrides)
     const { map: statePrompts, error: promptsError } = await read($, prompts)
-    // the one place a PR's status, colour and "needs you" come from: the person's pick when there is one, else its own
-    const statusFor = (pr: Pr, i: number) => {
-      const hasPrompt = Boolean(nextAction(pr, i === 0, statePrompts).prompt)
-      const picked = manual[pr.url]
-      const status = picked ?? ownStatus(pr, hasPrompt)
-      return { color: colorOfStatus(status), status, needsMe: picked ? picked === '● needs you' : hasPrompt, isManual: Boolean(picked) }
-    }
+    const statusFor = (pr: Pr, i: number) => resolveStatus(pr, i === 0, manual, statePrompts)
     const statusOf = (pr: Pr, i: number) => statusFor(pr, i).status
     const moves = stacks
       .flatMap(stack => stack.prs.map((pr, i) => ({ pr, i })).filter(({ pr, i }) => statusFor(pr, i).needsMe))
@@ -351,11 +370,10 @@ export const register: Register = (on, options) => {
     )
     // place: 'move' when drawn in Your move, since the same PR can also sit in its repo section
     const card = (pr: Pr, i: number, isStack: boolean, place = '') => {
-      const action = nextAction(pr, i === 0, statePrompts)
+      const { action, color: statusColor, status, needsMe, isManual } = statusFor(pr, i)
       const work = workAction(pr, action, options.showCopilotPass !== false, str(options.workPrompt), statePrompts)
       const ci = ciLine(pr)
       const review = reviewLine(pr)
-      const { color: statusColor, status, needsMe, isManual } = statusFor(pr, i)
       const color = cardColor(pr, repoKey(pr), statusColor, needsMe)
       const isDim = isAttention && !needsMe
       const hasBar = isAttention && needsMe
@@ -453,6 +471,7 @@ export const register: Register = (on, options) => {
               />
             )}
             <Button key={key('work')} label={label(work.label)} onPress={() => work.prompt && submit(work.prompt)} />
+            <Button key={key('watch')} label={label('◉ watch')} onPress={() => submit(watchPrompt(pr, action.state, str(options.watchPrompt), statePrompts))} />
             <Button key={key('switch')} label={label('⎇ Switch here')} onPress={() => guard(() => switchHere(pr))} />
             <Button key={key('new-session')} label={label('⧉ New session')} onPress={() => guard(() => newSession(pr, workAction(pr, action, false, str(options.workPrompt), statePrompts).prompt ?? ''))} />
           </Box>
