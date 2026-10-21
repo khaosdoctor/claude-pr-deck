@@ -84,6 +84,8 @@ Gitea, Forgejo and Azure DevOps do not give the mod CI state or unresolved threa
 
 Run `/prs` to open the pane. It refreshes on its own (every 2 minutes by default) and on ***↻ Refresh***.
 
+`/prs watch <pr>` does what ***◉ watch*** does without opening the pane, so any session can start watching a PR, for example one you open yourself in a clone or a `claude "/prs watch 3109"` from a script. The PR can be a number, `owner/repo#number` or its URL. A bare number that is open in more than one repo picks the session's repo, and otherwise asks for `owner/repo#number`.
+
 ## Options
 
 All of these are in `/config` under pr-deck.

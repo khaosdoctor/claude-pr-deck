@@ -7,7 +7,7 @@ import { parseJsonc } from './jsonc'
 import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, stateFileOf, summaryOf, toStacks, toStatePrompts, watchPrompt, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
-import { guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
+import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
 import { TERMINALS } from './terminals'
 import type { TerminalEnv } from './terminals'
 
@@ -140,6 +140,22 @@ async function refresh($: EngineInterface, options: PluginOptions) {
   await writeStateFile($, options).catch(failure => $.ui.toast(`Could not write the state file: ${short(failure instanceof Error ? failure.message : String(failure), 200)}`))
 }
 
+// `/prs watch <ref>` sends the card's watch prompt, so a session that has no pane open (one from New session, a script) can start watching a PR
+async function watchCommand($: EngineInterface, options: PluginOptions, ref: string) {
+  const known = await read($, snapshot)
+  const first = findPr(known?.prs ?? [], ref, known?.project)
+  // the session may not have fetched yet, or the PR is newer than the last refresh
+  if (typeof first === 'string') await refresh($, options)
+  const snap = await read($, snapshot)
+  const pr = typeof first === 'string' ? findPr(snap?.prs ?? [], ref, snap?.project) : first
+  if (typeof pr === 'string') return pr
+  const isBottom = toStacks(snap?.prs ?? []).find(stack => stack.prs.includes(pr))?.prs[0] === pr
+  const { map } = await read($, prompts)
+  const { action } = resolveStatus(pr, isBottom, await read($, overrides), map)
+  void guarded($, () => $.prompt.submit({ text: watchPrompt(pr, action.state, str(options.watchPrompt), map) }))
+  return `Watching ${pr.fullName}#${pr.number}.`
+}
+
 // the session name for a PR, e.g. pr-3109-worker; empty turns naming off
 const sessionNameOf = (options: PluginOptions, pr: Pr) =>
   options.autoRename === false ? '' : safeSessionName(plain(str(options.sessionName).trim(), prVars(pr)))
@@ -218,7 +234,7 @@ export const register: Register = (on, options) => {
   }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane' })
+    await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane, or watch one until it is green', argumentHint: '[watch <pr>]' })
     void guarded($, () => refresh($, options))
     $.clock.every((Number(options.refreshMinutes) || 2) * 60 * 1000, () => void guarded($, () => refresh($, options)))
     // session.start also fires on a reload, so this reopens a pane the person closed then; unfocused so the prompt keeps the cursor
@@ -227,7 +243,9 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'prs' }, async $ => {
+  on('command.run', { command: 'prs' }, async ($, e) => {
+    const [sub, ...rest] = e.args.trim().split(/\s+/)
+    if (sub === 'watch') return { text: await watchCommand($, options, rest.join(' ')) }
     void guarded($, () => refresh($, options))
     await $.ui.open({ id: PANE, title: 'Pull requests', focus: true })
 

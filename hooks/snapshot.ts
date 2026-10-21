@@ -40,7 +40,25 @@ export function repoKeyOf(prs: Pr[]): (pr: Pr) => string {
 // A session name goes unquoted into `claude -n <name>`, so anything outside [A-Za-z0-9._-] becomes '-' and a leading '-' is dropped, or claude reads it as a flag.
 export const safeSessionName = (name: string) => name.replace(/[^\w.-]+/g, '-').replace(/^-+/, '')
 
-export type StoredConfig = { ignored: string[]; overrides: Record<string, string> }
+// The PR `/prs watch <ref>` names: its URL, owner/repo#number, or a bare number, which prefers the session's repo when several repos have one.
+// A string is the reason nothing matched.
+export function findPr(prs: Pr[], ref: string, project?: string): Pr | string {
+  const text = ref.trim().replace(/^#/, '')
+  if (!text) return 'Which PR? Pass its number, owner/repo#number or URL.'
+  const byUrl = prs.find(pr => pr.url === text)
+  if (byUrl) return byUrl
+  const match = /^(?:(.+)#)?(\d+)$/.exec(text)
+  if (!match) return `${text} is not a PR number, owner/repo#number or URL.`
+  const [, repo, number] = match
+  const found = prs.filter(pr => pr.number === Number(number) && (!repo || pr.fullName === repo.toLowerCase()))
+  const here = found.filter(pr => pr.fullName === project)
+  const [only] = found.length === 1 ? found : here.length === 1 ? here : []
+  if (only) return only
+  if (found.length === 0) return `None of your open PRs is ${text}.`
+  return `#${number} is open in ${found.map(pr => pr.fullName).join(', ')}, pass owner/repo#${number}.`
+}
+
+export type StoredConfig ={ ignored: string[]; overrides: Record<string, string> }
 
 // undefined when the text is not a JSON object, so a half-edited file never reads as an empty config.
 export function parseConfig(text: string, statuses: string[]): StoredConfig | undefined {

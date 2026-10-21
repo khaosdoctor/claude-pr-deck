@@ -1,9 +1,25 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Pr } from '../types'
-import { guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
+import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
 
 const pr = (provider: string, number: number) => ({ provider, number, url: `https://${provider}.test/${number}` }) as Pr
+
+test('/prs watch finds a PR by number, owner/repo#number or URL', () => {
+  const api = { number: 7, fullName: 'acme/api', url: 'https://github.com/acme/api/pull/7' } as Pr
+  const web = { number: 7, fullName: 'acme/web', url: 'https://github.com/acme/web/pull/7' } as Pr
+  const solo = { number: 9, fullName: 'acme/web', url: 'https://github.com/acme/web/pull/9' } as Pr
+  const prs = [api, web, solo]
+  expect(findPr(prs, '9')).toBe(solo)
+  expect(findPr(prs, '#9')).toBe(solo)
+  expect(findPr(prs, 'Acme/Web#7')).toBe(web)
+  expect(findPr(prs, 'https://github.com/acme/api/pull/7')).toBe(api)
+  expect(findPr(prs, '7', 'acme/api')).toBe(api)
+  expect(findPr(prs, '7')).toBe('#7 is open in acme/api, acme/web, pass owner/repo#7.')
+  expect(findPr(prs, '42')).toBe('None of your open PRs is 42.')
+  expect(findPr(prs, '')).toBe('Which PR? Pass its number, owner/repo#number or URL.')
+  expect(findPr(prs, 'seven')).toBe('seven is not a PR number, owner/repo#number or URL.')
+})
 
 test('a failed host keeps its last PRs while the others refresh', () => {
   const old = [pr('github', 1), pr('gitlab', 2)]

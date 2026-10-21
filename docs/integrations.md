@@ -83,3 +83,9 @@ To act only on changes, keep the previous copy and compare by `url`, for example
 ## Watch button
 
 ***◉ watch*** on a card works from inside Claude instead: it asks the current session to keep checking that PR's CI and reviews, tell you about each change in one line, and stop once CI passes and nothing else needs you. Its prompt is the ***Watch prompt*** option, and the prompts file can give each state its own `watch` prompt, see [Prompts per state](../README.md#prompts-per-state).
+
+`/prs watch <pr>` sends the same prompt from any session, with no pane open, so a script can start a session that watches a PR:
+
+```sh
+claude "/prs watch acme/api#7"
+```
