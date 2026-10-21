@@ -40,6 +40,11 @@ test('Rio and Ghostty hand the prompt over in an environment variable, since fis
   }
 })
 
+test('every terminal puts -- before the prompt, so one that starts with a dash is not read as a claude flag', () => {
+  const promptAfterDashes = /\{claude\} -- (?:\{prompt\}|\{shellPrompt\}|"\$PR_DECK_PROMPT"|" & quoted form of item 2)/
+  for (const { name, command } of TERMINALS) expect([name, promptAfterDashes.test(command)]).toEqual([name, true])
+})
+
 test('shellPrompt comes out quoted twice, so the pane shell sees the quoted prompt', () => {
   const herdr = TERMINALS.find(t => t.name === 'a herdr tab')
   const prompt = "it's"

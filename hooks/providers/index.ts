@@ -57,8 +57,8 @@ const withSlash = (base: string) => (base.endsWith('/') ? base : `${base}/`)
 const trackers = [
   {
     id: 'jira',
-    // a bare site URL gets /browse/, a full prefix is used as given
-    url: (base: string, key: string) => `${withSlash(base)}${base.includes('/browse') ? '' : 'browse/'}${key}`,
+    // a bare site URL gets /browse/, a full prefix is used as given; the host is not part of the path
+    url: (base: string, key: string) => `${withSlash(base)}${base.replace(/^[\w+.-]+:\/\//, '').includes('/browse') ? '' : 'browse/'}${key}`,
   },
   { id: 'linear', url: (base: string, key: string) => `${withSlash(base)}${key}` },
 ]

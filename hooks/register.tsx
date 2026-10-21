@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, PluginOptions, Register } from 'claude-code'
+import type { EngineInterface, PluginOptions, ProcessRunResult, Register } from 'claude-code'
 
 import type { GroupBy, Pr, PromptsFile, Snapshot, Stack, View } from '../types'
 import { configScreen } from './config-screen'
@@ -7,7 +7,7 @@ import { parseJsonc } from './jsonc'
 import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
-import { keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, splitFullName } from './snapshot'
+import { guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
 import { TERMINALS } from './terminals'
 import type { TerminalEnv } from './terminals'
 
@@ -105,7 +105,7 @@ function saveIgnored($: EngineInterface, list: (current: string[]) => string[]) 
 async function openFile($: EngineInterface, options: PluginOptions, name: string, create: (path: string) => Promise<unknown>) {
   const path = await configFile($, name)
   if (!(await $.fs.exists(path))) await create(path)
-  await run($, str(options.editorCommand), { path })
+  toastFailure($, await run($, str(options.editorCommand), { path }))
 }
 
 async function refresh($: EngineInterface, options: PluginOptions) {
@@ -173,7 +173,10 @@ const labelFor = (style: unknown) => (label: string) => {
   return label
 }
 
-const short =(text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+// a command that failed says why in a toast
+function toastFailure($: EngineInterface, result: ProcessRunResult) {
+  if (result.exitCode !== 0) $.ui.toast(short(result.stderr.trim() || `command exited ${result.exitCode}`, 200))
+}
 
 export const register: Register = (on, options) => {
   const label = labelFor(options.buttonStyle)
@@ -191,16 +194,16 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane' })
-    void refresh($, options)
-    $.clock.every((Number(options.refreshMinutes) || 2) * 60 * 1000,() => void refresh($, options))
+    void guarded($, () => refresh($, options))
+    $.clock.every((Number(options.refreshMinutes) || 2) * 60 * 1000, () => void guarded($, () => refresh($, options)))
     // session.start also fires on a reload, so this reopens a pane the person closed then; unfocused so the prompt keeps the cursor
-    if (options.openOnStart === true) void $.ui.open({ id: PANE, title: 'Pull requests' })
+    if (options.openOnStart === true) void guarded($, () => $.ui.open({ id: PANE, title: 'Pull requests' }))
 
     return next(e)
   })
 
   on('command.run', { command: 'prs' }, async $ => {
-    void refresh($, options)
+    void guarded($, () => refresh($, options))
     await $.ui.open({ id: PANE, title: 'Pull requests', focus: true })
 
     return { text: 'PR pane opened.' }
@@ -209,15 +212,16 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const ui = $.ui.resolve(e)
     const { Box, Text, Button } = ui
-    // mobile has no Input element, so it keeps the list
-    if ('Input' in ui && (await read($, view)) === 'config') {
+    // mobile has no Input element, so it keeps the list and has no Config button
+    const hasConfig = 'Input' in ui
+    if (hasConfig && (await read($, view)) === 'config') {
       return configScreen($, ui, {
         options,
         label,
         back: () => void update($, view, () => 'list'),
-        openIgnored: () => void openFile($, options, 'pr-deck.json', () => serial(() => saveConfig($))),
+        openIgnored: () => void guarded($, () => openFile($, options, 'pr-deck.json', () => serial(() => saveConfig($)))),
         // the file is only created here, with every state as a commented-out block
-        openPrompts: () => void openFile($, options, 'pr-deck.prompts.jsonc', path => $.fs.write(path, promptsTemplate())),
+        openPrompts: () => void guarded($, () => openFile($, options, 'pr-deck.prompts.jsonc', path => $.fs.write(path, promptsTemplate()))),
       })
     }
     const snap = await read($, snapshot)
@@ -263,8 +267,15 @@ export const register: Register = (on, options) => {
     const stackNumber = (stack: Stack) => bottoms.findIndex(pr => pr.url === stack.prs[0]?.url) + 1
     // border, padding, "#1234 ", the stack marker and the status take ~28 columns
     const titleRoom = Math.max(20, (e.viewport?.columns ?? 80) - 28)
-    const submit = (text: string) => void $.prompt.submit({ text })
-    const open = (url: string) => void run($, str(options.openCommand), { url })
+    // handlers run unawaited, so a rejection from the engine has to end in a toast
+    const guard = (task: () => unknown) => void guarded($, task)
+    const submit = (text: string) => guard(() => $.prompt.submit({ text }))
+    const open = (url: string) => guard(async () => toastFailure($, await run($, str(options.openCommand), { url })))
+    const copy = (text: string, surface: Parameters<typeof $.ui.copy>[0]['surface']) =>
+      guard(async () => {
+        const result = await $.ui.copy({ text, surface })
+        if (!result.isCopied) $.ui.toast(`Could not copy (${result.reason})`)
+      })
     const switchHere = async (pr: Pr) => {
       const name = sessionNameOf(options, pr)
       if (name) await $.command.run({ command: 'rename', args: name }).catch(() => $.ui.toast(`Could not rename the session to ${name}`))
@@ -395,10 +406,10 @@ export const register: Register = (on, options) => {
           {titleRow}
           {options.showSummary !== false && pr.summary && <Text dimColor wrap="wrap">{summaryOf(pr.summary, Number(options.summaryLength) || 150)}</Text>}
           <Box flexWrap="wrap" columnGap={1}>
-            <Button key={key('copy-url')} label={label('⧉ copy link')} onPress={press => void $.ui.copy({ text: pr.url, surface: press.surface })} />
+            <Button key={key('copy-url')} label={label('⧉ copy link')} onPress={press => copy(pr.url, press.surface)} />
             <Button key={key('browser')} label={label('↗ open')} onPress={() => open(pr.url)} />
-            <Button key={key('copy-num')} label={label(`# copy ${pr.number}`)} onPress={press => void $.ui.copy({ text: String(pr.number), surface: press.surface })} />
-            <Button key={key('move')} label={label(`⇄ move: ${nextMove(manual[pr.url])?.slice(2) ?? 'auto'}`)} onPress={() => void saveOverride($, pr.url, nextMove(manual[pr.url]))} />
+            <Button key={key('copy-num')} label={label(`# copy ${pr.number}`)} onPress={press => copy(String(pr.number), press.surface)} />
+            <Button key={key('move')} label={label(`⇄ move: ${nextMove(manual[pr.url])?.slice(2) ?? 'auto'}`)} onPress={() => guard(() => saveOverride($, pr.url, nextMove(manual[pr.url])))} />
           </Box>
           <Text dimColor={isDim} wrap="truncate-end">
             <Text color={ci.color}>{ci.text}</Text>
@@ -442,8 +453,8 @@ export const register: Register = (on, options) => {
               />
             )}
             <Button key={key('work')} label={label(work.label)} onPress={() => work.prompt && submit(work.prompt)} />
-            <Button key={key('switch')} label={label('⎇ Switch here')} onPress={() => void switchHere(pr)} />
-            <Button key={key('new-session')} label={label('⧉ New session')} onPress={() => void newSession(pr, workAction(pr, action, false, str(options.workPrompt), statePrompts).prompt ?? '')} />
+            <Button key={key('switch')} label={label('⎇ Switch here')} onPress={() => guard(() => switchHere(pr))} />
+            <Button key={key('new-session')} label={label('⧉ New session')} onPress={() => guard(() => newSession(pr, workAction(pr, action, false, str(options.workPrompt), statePrompts).prompt ?? ''))} />
           </Box>
         </Box>
       )
@@ -469,15 +480,17 @@ export const register: Register = (on, options) => {
             <Button
               key="colors"
               label={label(`◐ ${cardMode}`)}
-              onPress={async () => {
-                const next = cardModes[(cardModes.indexOf(cardMode) + 1) % cardModes.length] ?? 'attention'
-                const { deny } = await $.config.set({ key: `${$.plugin.name}.cardColors`, value: next })
-                if (deny) $.ui.toast(deny)
-              }}
+              onPress={() =>
+                guard(async () => {
+                  const next = cardModes[(cardModes.indexOf(cardMode) + 1) % cardModes.length] ?? 'attention'
+                  const { deny } = await $.config.set({ key: `${$.plugin.name}.cardColors`, value: next })
+                  if (deny) $.ui.toast(deny)
+                })
+              }
             />
             <Button key="collapse" label={label(`⊖ collapse ${foldLevel}/3`)} onPress={() => foldTo(collapseTo)} />
-            <Button key="refresh" label={label('↻ Refresh')} onPress={() => refresh($, options)} />
-            <Button key="config" label={label('⚙ Config')} onPress={() => update($, view, () => 'config')} />
+            <Button key="refresh" label={label('↻ Refresh')} onPress={() => guard(() => refresh($, options))} />
+            {hasConfig && <Button key="config" label={label('⚙ Config')} onPress={() => update($, view, () => 'config')} />}
           </Box>
         </Box>
         {!snap.project && <Text dimColor>no repo remote in this folder, showing all repos</Text>}
@@ -544,7 +557,7 @@ export const register: Register = (on, options) => {
                 label="⊘ ignore"
                 onPress={() => {
                   const name = snap.prs.find(pr => repoKey(pr) === repo)?.fullName ?? repo
-                  void saveIgnored($, list => (list.includes(name) ? list : [...list, name]))
+                  guard(() => saveIgnored($, list => (list.includes(name) ? list : [...list, name])))
                 }}
               />
             </Box>
@@ -611,7 +624,7 @@ export const register: Register = (on, options) => {
                     key={`unignore:${name}`}
                     plain
                     label="↺ unignore"
-                    onPress={() => void saveIgnored($, list => list.filter(x => x !== name))}
+                    onPress={() => guard(() => saveIgnored($, list => list.filter(x => x !== name)))}
                   />
                 </Box>
               ))}

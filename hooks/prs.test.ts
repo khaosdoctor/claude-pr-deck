@@ -110,6 +110,27 @@ test('versions and ids in branch names are not ticket keys', () => {
   expect(ticketKey('Done in ABC-12.')).toBe('ABC-12')
 })
 
+test('an underscore ends a ticket key like any other separator', () => {
+  expect(ticketKey('ENG-123_fix-login')).toBe('ENG-123')
+  expect(ticketKey('lucas/ENG-123_fix')).toBe('ENG-123')
+  expect(ticketKey('fix_ENG-123')).toBe('ENG-123')
+  expect(ticketKey('lodash-4.17.21_bump')).toBeUndefined()
+  // a key that starts or ends inside a longer word or number is still not one
+  expect(ticketKey('2ENG-123')).toBeUndefined()
+  expect(ticketKey('ENG-123abc')).toBeUndefined()
+})
+
+test('a bare site URL whose host starts with browse still gets /browse/', () => {
+  expect(ticketUrl({ tracker: 'jira', trackerUrl: 'https://browsewell.atlassian.net' }, 'ABC-1')).toBe('https://browsewell.atlassian.net/browse/ABC-1')
+  expect(ticketUrl({ tracker: 'jira', trackerUrl: 'https://x.test/jira/browse' }, 'ABC-1')).toBe('https://x.test/jira/browse/ABC-1')
+})
+
+test('summary keeps lines that start with an issue reference and skips unchecked template tasks', () => {
+  expect(summaryOf('#42 follow-up: retries the request on timeout')).toBe('#42 follow-up: retries the request on timeout')
+  expect(summaryOf('## Summary\nAdds the drawer to every page')).toBe('Adds the drawer to every page')
+  expect(summaryOf('- [ ] I have tested my changes locally\n- [x] I have read the guide for contributors')).toBe('')
+})
+
 test('the Gitea fetch command runs under a POSIX sh and still fails when tea fails', () => {
   expect(gitea.command).not.toContain('pipefail')
   // every step stops the script when it fails, and printf keeps the \n inside the JSON from being expanded
@@ -309,6 +330,8 @@ test('strips comments outside strings and trailing commas', () => {
   // the text keeps its lines, so a JSON error points at the right place
   expect(stripJsonComments('1 /* a\nb */ 2').split('\n')).toHaveLength(2)
   expect(() => parseJsonc('{ "a": }')).toThrow()
+  // a byte order mark from a Windows editor is not part of the JSON
+  expect(parseJsonc('﻿// notes\n{ "a": 1 }')).toEqual({ a: 1 })
 })
 
 test('work button offers a Copilot pass only when green, idle and not asked yet', () => {

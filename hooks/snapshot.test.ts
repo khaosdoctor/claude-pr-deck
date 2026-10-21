@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Pr } from '../types'
-import { keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, splitFullName } from './snapshot'
+import { guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
 
 const pr = (provider: string, number: number) => ({ provider, number, url: `https://${provider}.test/${number}` }) as Pr
 
@@ -64,6 +64,25 @@ test('a session name never starts with a dash or holds unsafe characters', () =>
   expect(safeSessionName('--help me')).toBe('help-me')
   expect(safeSessionName('-WIP: x; rm')).toBe('WIP-x-rm')
   expect(safeSessionName('!!!')).toBe('')
+})
+
+test('short cuts with an ellipsis and survives a max of zero or less', () => {
+  expect(short('hello', 10)).toBe('hello')
+  expect(short('hello world', 6)).toBe('hello…')
+  expect(short('hello', 0)).toBe('…')
+  expect(short('hello', -3)).toBe('…')
+  expect(short('', 0)).toBe('')
+})
+
+test('a handler that rejects ends in a toast', async () => {
+  const toasts: string[] = []
+  const $ = { ui: { toast: (text: string) => void toasts.push(text) } } as unknown as Parameters<typeof guarded>[0]
+  await guarded($, () => Promise.reject(new Error('disk full')))
+  await guarded($, () => {
+    throw 'plain'
+  })
+  await guarded($, () => Promise.resolve())
+  expect(toasts).toEqual(['pr-deck: disk full', 'pr-deck: plain'])
 })
 
 test('text that is not a JSON object is unreadable, not empty', () => {

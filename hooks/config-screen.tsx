@@ -1,6 +1,7 @@
 import type { ConfigRow, ConfigValue, Elements, EngineInterface, PluginOptions } from 'claude-code'
 
 import { run } from './run'
+import { guarded } from './snapshot'
 
 type Deps = {
   options: PluginOptions
@@ -36,20 +37,23 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
   const openSettings = async () => {
     const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${(await $.env.get('HOME')) ?? ''}/.claude`
     const editor = options.editorCommand
-    await run($, typeof editor === 'string' ? editor : '', { path: `${dir}/settings.json` })
+    const result = await run($, typeof editor === 'string' ? editor : '', { path: `${dir}/settings.json` })
+    if (result.exitCode !== 0) $.ui.toast(result.stderr.trim().slice(0, 200) || `command exited ${result.exitCode}`)
   }
+  // handlers run unawaited, so a rejection from the engine has to end in a toast
+  const guard = (task: () => unknown) => void guarded($, task)
 
   const control = (row: ConfigRow) => {
     if (row.isLocked) return <Text dimColor>{String(row.value)} (locked)</Text>
     if (row.kind === 'boolean') {
       // keys matter here: without one a Button is addressed by its label, and every row shares these labels
-      return <Button key={row.key} label={label(row.value ? '● on' : '○ off')} variant={row.value ? 'primary' : undefined} onPress={() => void save(row, !row.value)} />
+      return <Button key={row.key} label={label(row.value ? '● on' : '○ off')} variant={row.value ? 'primary' : undefined} onPress={() => guard(() => save(row, !row.value))} />
     }
     if (row.kind === 'choice') {
       return (
         <Box flexWrap="wrap" columnGap={1}>
           {(row.options ?? []).map(option => (
-            <Button key={`${row.key}:${option}`} label={option} variant={row.value === option ? 'primary' : undefined} onPress={() => void save(row, option)} />
+            <Button key={`${row.key}:${option}`} label={option} variant={row.value === option ? 'primary' : undefined} onPress={() => guard(() => save(row, option))} />
           ))}
         </Box>
       )
@@ -58,8 +62,8 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
     return (
       <Box flexWrap="wrap" columnGap={1}>
         <Text wrap="truncate-end">{String(row.value) || <Text dimColor>empty</Text>}</Text>
-        <Button key={`${row.key}:claude`} plain label={label('⚙ edit in /config')} onPress={() => void openInClaude()} />
-        <Button key={`${row.key}:file`} plain label={label('✎ edit in file')} onPress={() => void openSettings()} />
+        <Button key={`${row.key}:claude`} plain label={label('⚙ edit in /config')} onPress={() => guard(openInClaude)} />
+        <Button key={`${row.key}:file`} plain label={label('✎ edit in file')} onPress={() => guard(openSettings)} />
       </Box>
     )
   }
@@ -73,8 +77,8 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
         <Box justifyContent="center" flexWrap="wrap" columnGap={1}>
           {/* keyed: with buttonStyle icons the three ✎ labels are the same, and a keyless Button is addressed by its label */}
           <Button key="back" label={label('← Back')} onPress={back} />
-          <Button key="open-config" label={label('⚙ Open in Claude /config')} onPress={() => void openInClaude()} />
-          <Button key="open-settings" label={label('✎ Open file')} onPress={() => void openSettings()} />
+          <Button key="open-config" label={label('⚙ Open in Claude /config')} onPress={() => guard(openInClaude)} />
+          <Button key="open-settings" label={label('✎ Open file')} onPress={() => guard(openSettings)} />
           <Button key="open-ignored" plain dimColor label={label('✎ open ignored list')} onPress={openIgnored} />
           <Button key="open-prompts" plain dimColor label={label('✎ open prompts file')} onPress={openPrompts} />
         </Box>

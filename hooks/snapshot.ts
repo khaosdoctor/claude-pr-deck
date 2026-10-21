@@ -1,4 +1,21 @@
+import type { EngineInterface } from 'claude-code'
+
 import type { Pr } from '../types'
+
+// Runs a handler that nobody awaits (a button press, a timer); a rejection ends in a toast instead of vanishing.
+export async function guarded($: Pick<EngineInterface, 'ui'>, task: () => unknown): Promise<void> {
+  try {
+    await task()
+  } catch (error) {
+    $.ui.toast(`pr-deck: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+// Cuts text to max characters with an ellipsis; a max below 1 still gives the ellipsis, not a slice from the end.
+export function short(text: string, max: number): string {
+  const room = Math.max(1, max)
+  return text.length > room ? `${text.slice(0, room - 1)}…` : text
+}
 
 // A host that failed this round keeps its last PRs on screen; dropping them would also prune their manual statuses on the next save.
 // Errors start with the provider id, see fetchAll.

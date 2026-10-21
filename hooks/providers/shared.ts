@@ -1,9 +1,10 @@
 // Ticket keys look like ABC-123 in both Jira and Linear. A number followed by .5 or -5 is a version or
 // an id (lodash-4.17.21, CVE-2024-1234), not a key; ENG-1-2fa-login still is one.
-export const TICKET_KEY = /\b[A-Z][A-Z0-9]+-\d+\b(?!\.\d|-\d+\b)/i
+// An underscore ends a key like any other separator (ENG-123_fix), which \b does not do; the key is group 1.
+export const TICKET_KEY = /(?:^|[^A-Za-z0-9])([A-Z][A-Z0-9]+-\d+)(?![A-Za-z0-9])(?!\.\d|-\d+\b)/i
 
 export function ticketKey(text: string): string | undefined {
-  return text.match(TICKET_KEY)?.[0].toUpperCase()
+  return text.match(TICKET_KEY)?.[1]?.toUpperCase()
 }
 
 const TICKET_KEYS = new RegExp(TICKET_KEY.source, 'gi')
@@ -22,7 +23,8 @@ const plainText = (line: string) =>
 // Parsers keep the whole sentence; the pane cuts it to the summaryLength option.
 export function summaryOf(body: string, max = Infinity): string {
   const isProse = (raw: string) => {
-    if (/^\s*(?:#|```|\||\[[^\]]+\]:|(?:<\/?[a-z][^>]*>\s*)+$)/i.test(raw)) return false
+    // "#42 follow-up" is prose, "## Summary" a heading; "- [ ] task" is a template checklist
+    if (/^\s*(?:#{1,6}(?:\s|$)|```|\||\[[^\]]+\]:|[-*+]\s+\[[ xX]\](?:\s|$)|(?:<\/?[a-z][^>]*>\s*)+$)/i.test(raw)) return false
     return plainText(raw).replace(TICKET_KEYS, '').split(/\s+/).filter(word => /\w{2,}/.test(word)).length >= 3
   }
   // PR templates keep their instructions in HTML comments, often over several lines
