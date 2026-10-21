@@ -1,14 +1,20 @@
 # External integrations
 
-pr-deck keeps a JSON file with every PR it picked up and the state each one is in, so other tools can react to your PRs without asking the code hosts again: a status bar that counts what needs you, a script that pings you when a PR goes green, a dashboard. Watch the file and act when it changes.
+[Back to README](../README.md)
+
+pr-deck keeps a JSON file with its PRs and their states, so a status bar, script or dashboard can react without asking the code hosts again.
+
+- [State file](#state-file)
+- [Watching the file](#watching-the-file)
+- [Common use cases](#common-use-cases)
 
 ## State file
 
-The path is the ***State file*** option in `/config`, `~/.cache/pr-deck/state.json` by default. A leading `~` is your home folder, the folder is created when missing, and an empty value turns the file off.
+The path is the ***State file*** option, `~/.cache/pr-deck/state.json` by default. A leading `~` is your home folder, the folder is created when missing, and an empty value turns the file off.
 
-The file is rewritten on every refresh: when a session starts, when you run `/prs`, on the ***Refresh every*** timer, and when you press ***↻ Refresh***. Only a refresh writes it, so a status you set with ***⇄ move*** reaches the file on the next one. Every open session with pr-deck loaded refreshes on its own, so with several sessions open the file updates more often, and the last one to refresh wins. Nothing writes it while no session is running, and a refresh where every host failed and the session knows no PRs yet leaves the file alone, so a session that starts offline keeps the last good file from another session.
+The file is rewritten on every refresh, and only a refresh writes it, so a status set with ***⇄ move*** reaches it on the next one. With several sessions open the last one to refresh wins. A refresh where every host failed and the session knows no PRs yet leaves the file alone, so an offline session keeps the last good file.
 
-It holds every PR, including repos you ignore (marked `ignored`) and repos outside the session's current project, so a watcher sees the same list in every session. A host that failed to load keeps the PRs from its last successful fetch, and `error` says what went wrong. PRs are grouped by `owner/repo` (on GitLab the full group path, on Azure DevOps `org/project/repo`).
+It lists the PRs of ignored repos and of repos outside the session's project too. A host that failed to load keeps its last PRs. PRs are grouped by `owner/repo` (on GitLab the full group path, on Azure DevOps `org/project/repo`).
 
 ```json
 {
@@ -43,7 +49,7 @@ It holds every PR, including repos you ignore (marked `ignored`) and repos outsi
 | --- | --- |
 | `updatedAt` | when the refresh finished, in ISO 8601 |
 | `error` | only when a host failed to load, with the reason |
-| `state` | one of the ids in [Prompts per state](../README.md#prompts-per-state), like `ci-failed` or `in-review` |
+| `state` | one of the ids in [Prompts per state](prompts.md#prompts-per-state), like `ci-failed` or `in-review` |
 | `status` | the status the card shows, without its symbol: `broken`, `conflicts`, `needs you`, `waiting` or `approved` |
 | `needsYou` | `true` when the PR needs you; PRs in ignored repos are still in the file, so pair it with `ignored` to match the pane's ***NEED YOU*** count |
 | `nextAction` | the label of the card's next-action button |
@@ -58,36 +64,63 @@ A PR stacked on another one lists the bottom of the stack first. A host that can
 
 ## Watching the file
 
-The file is written in place, so a reader can catch it halfway through a write. Treat a parse error as "try again in a moment" and keep the last good copy.
+The file is written in place, so a parse error means a write is in progress. Retry and keep the last good copy.
 
-Count the PRs that need you, skipping ignored repos, for a status bar:
-
-```sh
-jq '[.repos[][] | select(.needsYou and (.ignored | not))] | length' ~/.cache/pr-deck/state.json
-```
-
-Run a command every time the file changes, with [entr](https://github.com/eradman/entr):
+Run a script every time the file changes, with [entr](https://github.com/eradman/entr):
 
 ```sh
-echo ~/.cache/pr-deck/state.json | entr -n sh -c 'jq -r ".repos[][] | select(.needsYou) | .url" ~/.cache/pr-deck/state.json'
+echo ~/.cache/pr-deck/state.json | entr -n sh ~/bin/pr-deck-notify.sh
 ```
 
 Or with [fswatch](https://github.com/emcrisostomo/fswatch) on macOS:
 
 ```sh
-fswatch -o ~/.cache/pr-deck/state.json | while read -r _; do
-  jq -r '.repos[][] | select(.ci == "SUCCESS" and .review == "APPROVED") | "\(.url) is ready to merge"' ~/.cache/pr-deck/state.json
+fswatch -o ~/.cache/pr-deck/state.json | while read -r _; do sh ~/bin/pr-deck-notify.sh; done
+```
+
+The script is in [Notify on a state change](#notify-on-a-state-change).
+
+## Common use cases
+
+### Count in the tmux status bar
+
+PRs that need you, skipping ignored repos, as in the pane's ***NEED YOU*** count:
+
+```sh
+set -g status-right '#(jq "[.repos[][] | select(.needsYou and (.ignored | not))] | length" ~/.cache/pr-deck/state.json)'
+```
+
+### List PRs ready to merge
+
+```sh
+jq -r '.repos[][] | select(.state == "mergeable") | .url' ~/.cache/pr-deck/state.json
+```
+
+### Notify on a state change
+
+`pr-deck-notify.sh` keeps the previous copy and compares by `url`, here to notify when a PR leaves `ci-running`:
+
+```sh
+f=~/.cache/pr-deck/state.json
+prev=~/.cache/pr-deck/state.prev.json
+[ -f "$prev" ] || cp "$f" "$prev"
+jq -rn --slurpfile old "$prev" --slurpfile new "$f" '
+  ($old[0].repos | [.[][]] | map({(.url): .state}) | add // {}) as $was
+  | $new[0].repos[][]
+  | select($was[.url] == "ci-running" and .state != "ci-running")
+  | "\(.url) is now \(.state)"' | while read -r msg; do
+  osascript -e "display notification \"$msg\" with title \"pr-deck\""
+  # Linux: notify-send pr-deck "$msg"
 done
+cp "$f" "$prev"
 ```
 
-To act only on changes, keep the previous copy and compare by `url`, for example to notify when a PR's `state` goes from `ci-running` to anything else.
+### Warn before pushing a failing branch
 
-## Watch button
+In `.git/hooks/pre-push`, match the current branch to its PR:
 
-***◉ watch*** on a card works from inside Claude instead: it asks the current session to keep checking that PR's CI and reviews, tell you about each change in one line, and stop once CI passes and nothing else needs you. Its prompt is the ***Watch prompt*** option, and the prompts file can give each state its own `watch` prompt, see [Prompts per state](../README.md#prompts-per-state).
-
-`/prs watch <pr>` sends the same prompt from any session with no pane open, for example one that ***⧉ New session*** opened or one you start yourself in a clone. The PR can be a number, `owner/repo#number` or its URL:
-
-```
-/prs watch acme/api#7
+```sh
+jq -r --arg b "$(git branch --show-current)" \
+  '.repos[][] | select(.branch == $b and .state == "ci-failed") | "CI is failing on \(.url)"' \
+  ~/.cache/pr-deck/state.json
 ```
