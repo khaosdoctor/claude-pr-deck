@@ -45,8 +45,8 @@ export const safeSessionName = (name: string) => name.replace(/[^\w.-]+/g, '-').
 export function findPr(prs: Pr[], ref: string, project?: string): Pr | string {
   const text = ref.trim().replace(/^#/, '')
   if (!text) return 'Which PR? Pass its number, owner/repo#number or URL.'
-  // a URL copied from a tab, like .../pull/7/files or .../pull/7#discussion, is still that PR
-  const byUrl = prs.find(pr => text === pr.url || text.startsWith(`${pr.url}/`) || text.startsWith(`${pr.url}#`))
+  // a URL copied from a tab or a notification, like .../pull/7/files, .../pull/7#discussion or .../pull/7?notification_referrer_id=1, is still that PR
+  const byUrl = prs.find(pr => text === pr.url || ['/', '#', '?'].some(separator => text.startsWith(`${pr.url}${separator}`)))
   if (byUrl) return byUrl
   const match = /^(?:(.+)#)?(\d+)$/.exec(text)
   if (!match) return `${text} is not a PR number, owner/repo#number or URL.`

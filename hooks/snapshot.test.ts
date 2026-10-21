@@ -16,6 +16,7 @@ test('/prs watch finds a PR by number, owner/repo#number or URL', () => {
   expect(findPr(prs, 'https://github.com/acme/api/pull/7')).toBe(api)
   expect(findPr(prs, 'https://github.com/acme/api/pull/7/files')).toBe(api)
   expect(findPr(prs, 'https://github.com/acme/web/pull/9#discussion_r1')).toBe(solo)
+  expect(findPr(prs, 'https://github.com/acme/api/pull/7?notification_referrer_id=NT_1')).toBe(api)
   expect(findPr(prs, 'https://github.com/acme/api/pull/70')).toBe('https://github.com/acme/api/pull/70 is not a PR number, owner/repo#number or URL.')
   expect(findPr(prs, '7', 'acme/api')).toBe(api)
   expect(findPr(prs, '7')).toBe('#7 is open in acme/api, acme/web, pass owner/repo#7.')

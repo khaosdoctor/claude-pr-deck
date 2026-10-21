@@ -3,6 +3,7 @@ import { hostOf, summaryOf, ticketKey, UNKNOWN } from './shared'
 
 const query = `{currentUser{authoredMergeRequests(state:opened,first:50,sort:UPDATED_DESC){nodes{
   iid title description webUrl draft sourceBranch targetBranch conflicts approved
+  approvedBy(first:1){nodes{username}}
   diffStatsSummary{additions deletions fileCount}
   headPipeline{status}
   reviewers(first:20){nodes{username}}
@@ -44,7 +45,8 @@ function toPr(node: any): Pr {
     mergeable: node.conflicts ? 'CONFLICTING' : 'MERGEABLE',
     reviewRequests: node.reviewers.nodes.length,
     ...UNKNOWN,
-    review: node.approved ? 'APPROVED' : 'NONE',
+    // approved is also true when the project requires no approvals, so someone has to have approved
+    review: node.approved && node.approvedBy?.nodes?.length ? 'APPROVED' : 'NONE',
     ci,
     checksPassed: ci === 'SUCCESS' ? 1 : 0,
     checksTotal: node.headPipeline ? 1 : 0,

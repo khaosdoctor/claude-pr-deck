@@ -5,6 +5,7 @@ import type { EngineInterface } from 'claude-code'
 import { parseJsonc } from './jsonc'
 import { repoFromRemote } from './providers'
 import { github } from './providers/github'
+import { gitlab } from './providers/gitlab'
 import { fill, quote, run } from './run'
 import { TERMINALS } from './terminals'
 
@@ -83,6 +84,24 @@ const githubStdout = (node: object) =>
       ...node,
     }] } } },
   })
+
+test('GitLab reports approved for a project that requires no approvals, so that alone is not a review', () => {
+  const review = (node: object) => {
+    const stdout = JSON.stringify({
+      data: { currentUser: { authoredMergeRequests: { nodes: [{
+        iid: '1', title: 't', description: '', webUrl: 'https://gitlab.com/g/r/-/merge_requests/1', draft: false, sourceBranch: 'h', targetBranch: 'main',
+        conflicts: false, approved: true, approvedBy: { nodes: [] }, diffStatsSummary: null, headPipeline: null,
+        reviewers: { nodes: [] }, discussions: { nodes: [] }, project: { name: 'r', fullPath: 'g/r', repository: { rootRef: 'main' } },
+        ...node,
+      }] } } },
+    })
+    return gitlab.parse(stdout)[0]?.review
+  }
+
+  expect(review({})).toBe('NONE')
+  expect(review({ approvedBy: { nodes: [{ username: 'ana' }] } })).toBe('APPROVED')
+  expect(review({ approved: false, approvedBy: { nodes: [{ username: 'ana' }] } })).toBe('NONE')
+})
 
 test('GitHub falls back to the latest reviews when the repo does not require reviews', () => {
   const latest = (...states: string[]) => ({ latestOpinionatedReviews: { nodes: states.map(state => ({ state })) } })
