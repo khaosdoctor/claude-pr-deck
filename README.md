@@ -197,6 +197,24 @@ These three are templates. Placeholders in braces are filled in as plain text, n
 - **Fable review prompt**: sent by ***✦ Fable review***. An empty value uses the default.
 - **Work on it prompt**: sent by ***❯ Work on it*** and used as the first prompt of ***⧉ New session***. An empty value uses the default. The ***✦ Copilot pass*** prompt is not configurable.
 
+To change them, open ***⚙ Config*** in the pane and use the ***⚙ edit in /config*** or ***✎ edit in file*** link on the row, or set them in `~/.claude/settings.json` under the plugin's options:
+
+```json
+{
+  "pluginConfigs": {
+    "pr-deck@claude-pr-list-mod": {
+      "options": {
+        "sessionName": "{repo}-{pr}",
+        "fablePrompt": "Review {url} with a fable subagent, focus on tests and error handling. Report back, post nothing to {host}.",
+        "workPrompt": "Check out {branch} of {fullName}, read PR #{pr} ({title}) and its review threads with {cli}, then wait."
+      }
+    }
+  }
+}
+```
+
+For PR #3109 on `acme/node`, branch `fix-logging`, that names the session `node-3109`, and ***❯ Work on it*** sends `Check out fix-logging of acme/node, read PR #3109 (Fix logging) and its review threads with gh, then wait.` A saved change reloads the mod, and the next button press uses it.
+
 ## Config screen
 
 ***⚙ Config*** swaps the pane for a screen with every option above: toggles for on/off options and one button per value for pickers, saved on press. Text options show their value with ***⚙ edit in /config*** and ***✎ edit in file*** links. ***← Back*** returns to the list.
