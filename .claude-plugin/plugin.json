@@ -1,6 +1,6 @@
 {
   "name": "pr-deck",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pane listing your open PRs across code hosts, grouped into stacks, with next-action buttons and a state file other tools can watch",
   "author": { "name": "Lucas Santos", "url": "https://github.com/khaosdoctor" },
   "homepage": "https://github.com/khaosdoctor/claude-pr-list-mod",
