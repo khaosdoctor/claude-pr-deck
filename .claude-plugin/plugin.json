@@ -17,32 +17,32 @@
     "startCollapsed": {
       "type": "boolean",
       "title": "Start collapsed",
-      "description": "PR cards open folded to their title line. Click the arrow to unfold one.",
+      "description": "Cards start collapsed to their title line.",
       "default": false
     },
     "alwaysShowAll": {
       "type": "boolean",
       "title": "Always show all projects",
-      "description": "Start with PRs from every repo instead of only the current folder's repo.",
+      "description": "Start with PRs from every repo instead of just the current one.",
       "default": false
     },
     "cardColors": {
       "type": "string",
       "title": "Card colors",
-      "description": "attention: cards that need you are bright with a coloured bar, the rest are dimmed. status: border follows the PR state. repo: one colour per repo. random: one colour per PR.",
+      "description": "attention dims the cards that are not waiting on you, status colours by PR state, repo gives one colour per repo and random one per PR.",
       "default": "attention",
       "options": ["attention", "status", "repo", "random"]
     },
     "pinYourMove": {
       "type": "boolean",
       "title": "Pin \"Your move\" on top",
-      "description": "PRs waiting on you are listed in a group above the repos.",
+      "description": "List the PRs waiting on you in a group above the repos.",
       "default": true
     },
     "buttonStyle": {
       "type": "string",
       "title": "Button labels",
-      "description": "Show icons, text or both on buttons. The next-action button always keeps its text.",
+      "description": "Show icons, text or both on the card buttons.",
       "default": "both",
       "options": ["both", "icons", "text"]
     },
@@ -63,69 +63,69 @@
     "showSummary": {
       "type": "boolean",
       "title": "Show summary",
-      "description": "A one-line summary from the PR body under each title.",
+      "description": "Show a one-line summary from the PR body under each title.",
       "default": true
     },
     "summaryLength": {
       "type": "string",
       "title": "Summary length",
-      "description": "Most characters the summary shows before it is cut with an ellipsis. It wraps to the card width.",
+      "description": "Longest summary shown before it is cut with an ellipsis.",
       "default": "150",
       "options": ["30", "60", "100", "150", "200", "300"]
     },
     "showFableButton": {
       "type": "boolean",
       "title": "Show Fable review button",
-      "description": "A button that asks the session to run a review subagent and report back.",
+      "description": "Show the button that asks the session to review the PR with a subagent and report back.",
       "default": true
     },
     "showCopilotPass": {
       "type": "boolean",
       "title": "Offer Copilot pass",
-      "description": "GitHub only. When a PR is green and idle, the work button requests a Copilot review and works its comments.",
+      "description": "On GitHub, offer a Copilot review once a PR is green and only waiting on people.",
       "default": true
     },
     "providers": {
       "type": "string",
       "title": "Code hosts",
-      "description": "Comma-separated list of hosts to fetch PRs from: github, gitlab, gitea, azdo.",
+      "description": "Comma-separated hosts to fetch PRs from: github, gitlab, gitea, azdo.",
       "default": "github"
     },
     "tracker": {
       "type": "string",
       "title": "Issue tracker",
-      "description": "Where ticket keys found in PR titles and branches link to.",
+      "description": "Where ticket keys in PR titles and branches link to.",
       "default": "jira",
       "options": ["jira", "linear", "none"]
     },
     "trackerUrl": {
       "type": "string",
       "title": "Issue tracker URL",
-      "description": "Base URL the ticket key is appended to, e.g. https://yourcompany.atlassian.net/browse/ or https://linear.app/yourteam/issue/. Empty shows the key as text.",
+      "description": "Base URL the ticket key is appended to, like https://yourcompany.atlassian.net/browse/ or https://linear.app/yourteam/issue/; empty shows the key as plain text.",
       "default": ""
     },
     "githubCommand": {
       "type": "string",
       "title": "GitHub fetch command",
-      "description": "Shell command that prints the GitHub GraphQL response. Empty uses the built-in gh api graphql call; {query} is the query.",
+      "description": "Shell command that prints the GitHub GraphQL response; empty uses gh api graphql, {query} is the query.",
       "default": ""
     },
     "gitlabCommand": {
       "type": "string",
       "title": "GitLab fetch command",
-      "description": "Shell command that prints the GitLab GraphQL response. Empty uses the built-in glab api graphql call; {query} is the query.",
+      "description": "Shell command that prints the GitLab GraphQL response; empty uses glab api graphql, {query} is the query.",
       "default": ""
     },
     "giteaCommand": {
       "type": "string",
       "title": "Gitea/Forgejo fetch command",
-      "description": "Shell command that prints the Gitea JSON response. Empty uses the built-in tea api call.",
+      "description": "Shell command that prints the Gitea JSON response; empty uses tea api.",
       "default": ""
     },
     "azdoCommand": {
       "type": "string",
       "title": "Azure DevOps fetch command",
-      "description": "Shell command that prints the Azure DevOps PR list JSON. Empty uses the built-in az repos pr list call.",
+      "description": "Shell command that prints the Azure DevOps PR list JSON; empty uses az repos pr list.",
       "default": ""
     },
     "openCommand": {
@@ -149,37 +149,37 @@
     "cloneDir": {
       "type": "string",
       "title": "Local clone folder",
-      "description": "Where a repo's clone lives, used by the new session button. {host}, {owner} and {repo} are filled in, e.g. ~/code/{host}/{owner}/{repo}. Empty starts in the current folder.",
+      "description": "Where your repos are cloned, like ~/code/{host}/{owner}/{repo}; empty starts new sessions in the current folder.",
       "default": ""
     },
     "newSessionCommand": {
       "type": "string",
       "title": "New session command",
-      "description": "Opens a new Claude session for a PR. {claude} is claude with the session name flag, {dir} the clone folder, {prompt} the first prompt and {label} the PR name. Empty (the default) picks automatically: a herdr, tmux, zellij, WezTerm or kitty tab, else Ghostty, iTerm or Terminal.",
+      "description": "Opens a new Claude session for a PR, with {claude}, {dir}, {prompt} and {label}; empty opens a tab or window in the terminal you are using.",
       "default": ""
     },
     "autoRename": {
       "type": "boolean",
       "title": "Auto rename sessions",
-      "description": "Name the session that New session opens or Switch here moves, using Session name.",
+      "description": "Name the sessions that New session opens or Switch here moves.",
       "default": true
     },
     "sessionName": {
       "type": "string",
       "title": "Session name",
-      "description": "Name given to the session that New session opens or Switch here moves. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}. Empty leaves sessions unnamed.",
+      "description": "Name for the session that New session opens or Switch here moves; empty leaves it unnamed. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
       "default": "pr-{pr}-worker"
     },
     "fablePrompt": {
       "type": "string",
       "title": "Fable review prompt",
-      "description": "Prompt the Fable review button sends. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}. Empty uses the default.",
+      "description": "Prompt the Fable review button sends; empty uses the default. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
       "default": "Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}."
     },
     "workPrompt": {
       "type": "string",
       "title": "Work on it prompt",
-      "description": "Prompt the Work on it button sends, and the first prompt of New session. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}. Empty uses the default.",
+      "description": "Prompt the Work on it button sends and the first prompt of New session; empty uses the default. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
       "default": "Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions."
     }
   }
