@@ -42,9 +42,9 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
     const { deny } = await $.config.set({ key: row.key, value })
     $.ui.toast(deny ?? `Saved ${row.label}`)
   }
-  // ponytail: asks the engine to run the built-in /config; if it refuses, the toast says what to type
+  // asks the engine to run the built-in /config; if it refuses, the toast says what to type
   const openInClaude = () => $.command.run({ command: 'config' }).catch(() => $.ui.toast('Type /config in the prompt'))
-  // ponytail: the user-level settings file, where pluginConfigs[<plugin>].options is written unless the plugin is set up per project
+  // the user-level settings file, where pluginConfigs[<plugin>].options is written unless the plugin is set up per project
   const openSettings = async () => {
     const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${(await $.env.get('HOME')) ?? ''}/.claude`
     const editor = options.editorCommand
@@ -65,7 +65,7 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
         </Box>
       )
     }
-    // ponytail: the pane's Input does not take typing, so text values are edited in /config or the settings file
+    // the pane's Input does not take typing, so text values are edited in /config or the settings file
     return (
       <Box flexWrap="wrap" columnGap={1}>
         <Text wrap="truncate-end">{String(row.value) || <Text dimColor>empty</Text>}</Text>

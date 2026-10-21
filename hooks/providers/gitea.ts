@@ -4,7 +4,7 @@ import { hostOf, summaryOf, ticketKey } from './shared'
 // Forgejo and Gitea mark drafts with a title prefix, and newer versions also set `draft`
 const DRAFT_PREFIX = /^(\[(wip|draft)\]|(wip|draft):)/i
 
-// ponytail: raw API objects as-is, tea is the trust boundary. Review threads and CI are separate
+// raw API objects as-is, tea is the trust boundary. Review threads and CI are separate
 // endpoints per PR, so they stay unknown: ci NONE, unresolved 0
 function toPr(node: any): Pr {
   const base = node.base.repo
@@ -27,7 +27,7 @@ function toPr(node: any): Pr {
     checksPassed: 0,
     checksTotal: 0,
     reviewRequests: (node.requested_reviewers ?? []).length,
-    // ponytail: permission unknown, keep offering the review request
+    // permission unknown, keep offering the review request
     canRequestReview: true,
     hasCopilot: false,
     unresolved: 0,
@@ -39,7 +39,7 @@ function toPr(node: any): Pr {
   }
 }
 
-// ponytail: the issue search lists my PRs across repos but without branches, so each one is fetched
+// the issue search lists my PRs across repos but without branches, so each one is fetched
 // from its pull endpoint and jq slurps the objects into one array; needs jq next to tea
 export const gitea: Provider = {
   id: 'gitea',

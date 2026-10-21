@@ -12,7 +12,7 @@ const osascript = (...lines: string[]) => `osascript ${lines.map(line => `-e ${q
 
 // Multiplexers come before terminal apps, first match wins; the last entry matches anything.
 export const TERMINALS: Terminal[] = [
-  // ponytail: waits for the first shell prompt, then a second, because typing during shell startup garbles the command; needs jq
+  // waits for the first shell prompt, then a second, because typing during shell startup garbles the command; needs jq
   {
     name: 'a herdr tab',
     test: env => env.program === 'herdr',
@@ -24,19 +24,19 @@ export const TERMINALS: Terminal[] = [
   { name: 'a WezTerm tab', test: env => env.program === 'WezTerm', command: 'wezterm cli spawn --cwd {dir} -- {claude} {prompt}' },
   // kitty needs allow_remote_control (or listen_on) in kitty.conf; without it the toast shows kitty's error
   { name: 'a kitty tab', test: env => Boolean(env.kittyWindow), command: 'kitty @ launch --type=tab --cwd={dir} --tab-title={label} {claude} {prompt}' },
-  // ponytail: Alacritty has no tabs, so a new window through its IPC socket
+  // Alacritty has no tabs, so a new window through its IPC socket
   {
     name: 'an Alacritty window',
     test: env => Boolean(env.alacrittyWindow),
     command: 'alacritty msg create-window --working-directory {dir} -e {claude} {prompt}',
   },
-  // ponytail: always a new Rio instance, like Ghostty; flags written from Rio's docs
+  // always a new Rio instance, like Ghostty; flags written from Rio's docs
   {
     name: 'Rio',
     test: env => env.program === 'rio',
     command: 'open -na Rio --args --working-dir {dir} -e "${SHELL:-/bin/sh}" -lic \'exec {claude} "$0"\' {prompt}',
   },
-  // ponytail: always a new Ghostty instance, since the macOS CLI cannot add a window to a running one; a login shell finds claude on PATH
+  // always a new Ghostty instance, since the macOS CLI cannot add a window to a running one; a login shell finds claude on PATH
   {
     name: 'Ghostty',
     test: env => env.bundleId === 'com.mitchellh.ghostty' || env.program === 'ghostty',

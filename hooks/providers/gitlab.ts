@@ -22,7 +22,7 @@ const CI: Record<string, string> = {
   SCHEDULED: 'PENDING',
 }
 
-// ponytail: raw GraphQL nodes as-is, glab is the trust boundary; the head pipeline counts as one check
+// raw GraphQL nodes as-is, glab is the trust boundary; the head pipeline counts as one check
 function toPr(node: any): Pr {
   const ci = CI[node.headPipeline?.status ?? ''] ?? 'NONE'
   const fullName: string = node.project.fullPath.toLowerCase()
@@ -46,7 +46,7 @@ function toPr(node: any): Pr {
     checksPassed: ci === 'SUCCESS' ? 1 : 0,
     checksTotal: node.headPipeline ? 1 : 0,
     reviewRequests: node.reviewers.nodes.length,
-    // ponytail: permission unknown, keep offering the review request
+    // permission unknown, keep offering the review request
     canRequestReview: true,
     hasCopilot: false,
     unresolved: node.discussions.nodes.filter((d: any) => d.resolvable && !d.resolved).length,

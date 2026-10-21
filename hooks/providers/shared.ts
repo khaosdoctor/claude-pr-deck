@@ -14,7 +14,7 @@ const plainText = (line: string) =>
     .replace(/^\s*(?:[-*+>]|\d+\.)\s+/, '')
     .trim()
 
-// ponytail: the first sentence of the first prose line; a model summary would read better but costs a call per PR.
+// the first sentence of the first prose line; a model summary would read better but costs a call per PR.
 // Skips headings ("## Summary"), fences, tables, link references and ticket-only lines ("ABC-1, part of ABC-2.").
 // Parsers keep the whole sentence; the pane cuts it to the summaryLength option.
 export function summaryOf(body: string, max = Infinity): string {

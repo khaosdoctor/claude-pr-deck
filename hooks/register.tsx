@@ -181,7 +181,7 @@ const short =(text: string, max: number) => (text.length > max ? `${text.slice(0
 
 export const register: Register = (on, options) => {
   const label = labelFor(options.buttonStyle)
-  // ponytail: the option is only the atom's starting value, a toggle sticks until the session state resets
+  // the option is only the atom's starting value, a toggle sticks until the session state resets
   const groupBy = atom({ plugin: 'pr-deck', key: 'groupBy' } as const, (options.defaultGroup === 'none' ? 'none' : 'status') as GroupBy)
   const refreshMs = (Number(options.refreshMinutes) || 2) * 60 * 1000
   const isAttention = !['status', 'repo', 'random'].includes(str(options.cardColors))
@@ -198,7 +198,7 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane' })
     void refresh($, options)
     $.clock.every(refreshMs, () => void refresh($, options))
-    // ponytail: session.start also fires on a reload, so this reopens a pane the person closed then; unfocused so the prompt keeps the cursor
+    // session.start also fires on a reload, so this reopens a pane the person closed then; unfocused so the prompt keeps the cursor
     if (options.openOnStart === true) void $.ui.open({ id: PANE, title: 'Pull requests' })
 
     return next(e)
@@ -214,7 +214,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const ui = $.ui.resolve(e)
     const { Box, Text, Button } = ui
-    // ponytail: mobile has no Input element, so it keeps the list
+    // mobile has no Input element, so it keeps the list
     if ('Input' in ui && (await read($, view)) === 'config') {
       const back = () => void update($, view, () => 'list')
       return configScreen($, ui, { options, label, back, openIgnored: () => void openConfig($, options), openPrompts: () => void openPrompts($, options) })
@@ -248,7 +248,7 @@ export const register: Register = (on, options) => {
       .flatMap(stack => stack.prs.map((pr, i) => ({ pr, i })).filter(({ pr, i }) => needsYouAt(pr, i)))
       .sort((a, b) => rank(statusOf(a.pr, a.i)) - rank(statusOf(b.pr, b.i)))
     const pinMoves = options.pinYourMove !== false && moves.length > 0
-    // ponytail: a stack where every PR needs you moves to Your move whole; a stack where only some do stays intact in its repo and those PRs show in both places
+    // a stack where every PR needs you moves to Your move whole; a stack where only some do stays intact in its repo and those PRs show in both places
     const sections = pinMoves ? stacks.filter(s => !s.prs.every(needsYouAt)) : stacks
     const repos = [...new Set(sections.map(s => s.repo))]
     // numbered by bottom PR so a stack keeps its number when grouping changes
@@ -294,7 +294,7 @@ export const register: Register = (on, options) => {
       const where = custom ? 'a new session' : terminal?.name
       $.ui.toast(result.exitCode === 0 ? `Opened #${pr.number} in ${where}` : short(result.stderr.trim() || `new session command exited ${result.exitCode}`, 200))
     }
-    // ponytail: session state may still hold the removed 'project' value, treat anything else as status
+    // session state may still hold the removed 'project' value, treat anything else as status
     const folded = new Set(await read($, collapsed))
     const grouping: GroupBy =(await read($, groupBy)) === 'none' ? 'none' : 'status'
     // a stack groups as its bottom PR, so stacks never split
@@ -366,7 +366,7 @@ export const register: Register = (on, options) => {
         </Box>
       )
 
-      // ponytail: the bar is an absolute Box pinned top and bottom, so it spans the card height whatever it holds; a long column of ┃ is clipped to it
+      // the bar is an absolute Box pinned top and bottom, so it spans the card height whatever it holds; a long column of ┃ is clipped to it
       const bar = hasBar && (
         <Box position="absolute" top={0} bottom={0} left={0} width={1} overflow="hidden">
           {/* grouped by status, the headers say the status, so the bar carries the repo; ungrouped, it carries the status */}
@@ -419,7 +419,7 @@ export const register: Register = (on, options) => {
             <Button key={key('files')} plain label={short(pr.head, titleRoom)} onPress={() => open(`${pr.url}/files`)} />
           </Box>
           <Box marginTop={1} flexWrap="wrap" columnGap={1}>
-            {/* ponytail: next action keeps its text in every buttonStyle, an arrow alone says nothing */}
+            {/* next action keeps its text in every buttonStyle, an arrow alone says nothing */}
             <Button
               key={key('next')}
               label={options.buttonStyle === 'text' ? action.label : `→ ${action.label}`}
@@ -445,7 +445,7 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
-        {/* ponytail: the header is a filled Box, so the strip spans the pane whatever its width; the empty row after it comes from the next block's marginTop */}
+        {/* the header is a filled Box, so the strip spans the pane whatever its width; the empty row after it comes from the next block's marginTop */}
         <Box flexDirection="column" backgroundColor="userMessageBackground" marginTop={1}>
           <Box justifyContent="center">
             <Text wrap="truncate-end">

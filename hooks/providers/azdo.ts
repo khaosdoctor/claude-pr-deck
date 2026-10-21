@@ -4,7 +4,7 @@ import { hostOf, repoFromRemote, summaryOf, ticketKey } from './shared'
 const branchOf = (ref: string) => ref.replace(/^refs\/heads\//, '')
 
 // Reviewer votes: 10 approved, 5 approved with suggestions, 0 none, -5 waiting for author, -10 rejected
-// ponytail: any negative vote asks for changes, otherwise any positive vote approves; branch policies are not read
+// any negative vote asks for changes, otherwise any positive vote approves; branch policies are not read
 function reviewOf(votes: number[]): string {
   if (votes.some(vote => vote < 0)) return 'CHANGES_REQUESTED'
   if (votes.some(vote => vote > 0)) return 'APPROVED'
@@ -13,7 +13,7 @@ function reviewOf(votes: number[]): string {
 
 const MERGEABLE: Record<string, string> = { succeeded: 'MERGEABLE', conflicts: 'CONFLICTING' }
 
-// ponytail: raw az objects as-is, az is the trust boundary. Build results and comment threads live
+// raw az objects as-is, az is the trust boundary. Build results and comment threads live
 // behind other calls, so ci stays NONE, unresolved 0, and line counts 0
 function toPr(node: any): Pr {
   const repository = node.repository
@@ -38,7 +38,7 @@ function toPr(node: any): Pr {
     checksPassed: 0,
     checksTotal: 0,
     reviewRequests: votes.filter(vote => vote === 0).length,
-    // ponytail: permission unknown, keep offering the review request
+    // permission unknown, keep offering the review request
     canRequestReview: true,
     hasCopilot: false,
     unresolved: 0,
@@ -50,7 +50,7 @@ function toPr(node: any): Pr {
   }
 }
 
-// ponytail: az lists one project's PRs (the one it detects from the git remote or `az devops configure`);
+// az lists one project's PRs (the one it detects from the git remote or `az devops configure`);
 // override azdoCommand to cover more projects. --creator takes the signed-in account's name
 export const azdo: Provider = {
   id: 'azdo',

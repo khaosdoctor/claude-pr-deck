@@ -17,7 +17,7 @@ export function toStacks(prs: Pr[]): Stack[] {
     for (const root of roots) {
       const chain: Pr[] = []
       const queue = [root]
-      // ponytail: depth-first walk, a branching stack shows as one flattened chain
+      // depth-first walk, a branching stack shows as one flattened chain
       while (queue.length > 0) {
         const pr = queue.shift() as Pr
         chain.push(pr)

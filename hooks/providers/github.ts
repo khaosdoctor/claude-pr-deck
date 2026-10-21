@@ -18,7 +18,7 @@ const CAN_REQUEST_REVIEW = new Set(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE'])
 
 type Context = { __typename: string; status?: string; conclusion?: string | null; state?: string }
 
-// ponytail: takes the raw GraphQL nodes as-is, no schema validation; gh is the trust boundary
+// takes the raw GraphQL nodes as-is, no schema validation; gh is the trust boundary
 export function toPr(node: any): Pr {
   const rollup = node.commits.nodes[0]?.commit.statusCheckRollup
   const contexts: Context[] = rollup?.contexts.nodes ?? []
