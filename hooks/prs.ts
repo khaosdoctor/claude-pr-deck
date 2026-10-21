@@ -32,6 +32,28 @@ export function toStacks(prs: Pr[]): Stack[] {
 
 export type Action = { label: string; prompt?: string }
 
+// Placeholders are plain text, not shell-quoted like the command ones; unknown ones stay as written.
+export const plain = (template: string, vars: Record<string, string>) => template.replace(/\{(\w+)\}/g, (match, name: string) => vars[name] ?? match)
+
+// What the prompt and session name templates can use; {number} is an alias of {pr}.
+export const prVars = (pr: Pr): Record<string, string> => ({
+  pr: String(pr.number),
+  number: String(pr.number),
+  url: pr.url,
+  title: pr.title,
+  branch: pr.head,
+  base: pr.base,
+  repo: pr.repo,
+  fullName: pr.fullName,
+  host: pr.host,
+  cli: providerOf(pr.provider).cli,
+})
+
+// Same text as the fablePrompt and workPrompt defaults in plugin.json, used when an option is blank.
+export const DEFAULT_FABLE_PROMPT = "Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}."
+export const DEFAULT_WORK_PROMPT =
+  'Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.'
+
 export function nextAction(pr: Pr, isBottom: boolean): Action {
   const ref = `PR ${pr.url} (branch ${pr.head})`
   const provider = providerOf(pr.provider)
@@ -62,7 +84,7 @@ export function nextAction(pr: Pr, isBottom: boolean): Action {
 
 // The third button: once the PR is green and only waiting on people, put Copilot on it
 // (only when the user allows it and the code host has Copilot).
-export function workAction(pr: Pr, next: Action, allowCopilot: boolean): Action {
+export function workAction(pr: Pr, next: Action, allowCopilot: boolean, workTemplate?: string): Action {
   const ref = `PR ${pr.url} (branch ${pr.head})`
   const provider = providerOf(pr.provider)
 
@@ -75,6 +97,6 @@ export function workAction(pr: Pr, next: Action, allowCopilot: boolean): Action 
 
   return {
     label: '❯ Work on it',
-    prompt: `Load context for ${pr.url}: check out branch ${pr.head} in the ${pr.repo} repo, read the PR description, diff, CI status and review comments (${provider.cli} reads them), then wait for my instructions.`,
+    prompt: plain(workTemplate?.trim() || DEFAULT_WORK_PROMPT, prVars(pr)),
   }
 }

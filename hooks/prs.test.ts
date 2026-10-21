@@ -187,6 +187,12 @@ test('Copilot pass is off when the user disables it or the host has no Copilot',
   expect(workAction(gitlab, nextAction(gitlab, true), true).label).toBe('❯ Work on it')
 })
 
+test('a custom work template fills the placeholders, blank falls back to the default', () => {
+  const custom = pr({ number: 42, head: 'feat/x' })
+  expect(workAction(custom, { label: 'Wait for review' }, false, 'Review #{pr} on {branch} {nope}').prompt).toBe('Review #42 on feat/x {nope}')
+  expect(workAction(custom, { label: 'Wait for review' }, false, '  ').prompt).toContain('check out branch feat/x')
+})
+
 test('prompts use the CLI of the PR host', () => {
   const draft = nextAction(pr({ provider: 'gitlab', isDraft: true }), true)
   expect(draft.prompt).toContain('glab mr update --ready')

@@ -141,7 +141,6 @@ Set these in `/config` under pr-deck.
 | Local clone folder | empty |
 | New session command | empty, which picks a terminal automatically |
 | Auto rename sessions | on |
-| Session name | `pr-{number}-worker` |
 
 Each command is a shell template run with `sh -c`. Placeholders in braces are replaced with the value wrapped in single quotes, so a URL or prompt with spaces or quotes is safe to pass as one argument. Do not add your own quotes around a placeholder.
 
@@ -151,10 +150,7 @@ Each command is a shell template run with `sh -c`. Placeholders in braces are re
 | Open config file command | `{path}` |
 | Current repo command | none |
 | New session command | `{claude}`, `{dir}`, `{prompt}`, `{label}`, `{url}`, `{branch}`, `{repo}`, `{name}` |
-| Session name | `{number}`, `{repo}`, filled as plain text |
 | Fetch commands | `{query}` (GitHub and GitLab) |
-
-- **Session name**: ***⧉ New session*** starts `claude -n <name>`, and ***⎇ Switch here*** runs `/rename <name>` on the current session. Characters other than letters, digits, `.`, `_` and `-` become `-`. Turn ***Auto rename sessions*** off, or leave the name empty, to skip naming. In your own new session command, `{claude}` is `claude` with that name flag.
 
 - **Current repo command**: prints the remote URL of the session's repo. The pane uses it to scope to that repo.
 - **Local clone folder**: where a repo is cloned, for example `~/code/{host}/{owner}/{repo}`. `{host}`, `{owner}` and `{repo}` are filled in as plain text, and a leading `~` becomes your home folder. ***⧉ New session*** starts there, and ***⎇ Switch here*** tells the session to look there first. When empty, ***⧉ New session*** starts in the session's current folder and ***⎇ Switch here*** asks the session to look in nearby folders.
@@ -174,6 +170,32 @@ Each command is a shell template run with `sh -c`. Placeholders in braces are re
   | 10 | Terminal window | anything else |
 
   The herdr row needs `jq`. The kitty row needs `allow_remote_control yes` (or `listen_on`) in `kitty.conf`. Warp has no way to start a command in a new tab, so it falls through to Terminal; set your own command there. A non-empty command replaces all of this. In it, `{dir}` is the folder from above, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch, `{repo}` the `owner/repo` name and `{name}` the session name. `{shellPrompt}` is the prompt already quoted for the terminal's own shell, for commands that type it into a pane, as the herdr row does.
+
+### Prompts
+
+| Option | Default |
+| --- | --- |
+| Session name | `pr-{pr}-worker` |
+| Fable review prompt | `Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}.` |
+| Work on it prompt | `Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.` |
+
+These three are templates. Placeholders in braces are filled in as plain text, not shell-quoted, and one that is not in the list below stays as written.
+
+| Placeholder | Value |
+| --- | --- |
+| `{pr}`, `{number}` | PR number |
+| `{url}` | PR link |
+| `{title}` | PR title |
+| `{branch}` | head branch |
+| `{base}` | base branch |
+| `{repo}` | repo name |
+| `{fullName}` | `owner/repo` |
+| `{host}` | code host name, such as `github.com` |
+| `{cli}` | the host's command line tool, such as `gh` |
+
+- **Session name**: ***⧉ New session*** starts `claude -n <name>`, and ***⎇ Switch here*** runs `/rename <name>` on the current session. Characters other than letters, digits, `.`, `_` and `-` become `-`. Turn ***Auto rename sessions*** off, or leave the name empty, to skip naming. In your own new session command, `{claude}` is `claude` with that name flag.
+- **Fable review prompt**: sent by ***✦ Fable review***. An empty value uses the default.
+- **Work on it prompt**: sent by ***❯ Work on it*** and used as the first prompt of ***⧉ New session***. An empty value uses the default. The ***✦ Copilot pass*** prompt is not configurable.
 
 ## Config screen
 

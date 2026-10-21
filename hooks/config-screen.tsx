@@ -10,7 +10,7 @@ type Deps = {
   openIgnored: () => void
 }
 
-const SECTIONS = ['Display', 'Hosts and trackers', 'Commands']
+const SECTIONS = ['Display', 'Hosts and trackers', 'Commands', 'Prompts']
 // fields not listed here are Display
 const SECTION_OF: Record<string, string> = {
   providers: 'Hosts and trackers',
@@ -26,7 +26,9 @@ const SECTION_OF: Record<string, string> = {
   cloneDir: 'Commands',
   newSessionCommand: 'Commands',
   autoRename: 'Commands',
-  sessionName: 'Commands',
+  sessionName: 'Prompts',
+  fablePrompt: 'Prompts',
+  workPrompt: 'Prompts',
 }
 
 // The /config rows of this plugin, drawn in the pane. A save reloads the module with the new options.

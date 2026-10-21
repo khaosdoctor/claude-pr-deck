@@ -4,7 +4,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 import type { GroupBy, Pr, Snapshot, Stack, View } from '../types'
 import { configScreen } from './config-screen'
 import type { Action } from './prs'
-import { nextAction, summaryOf, toStacks, workAction } from './prs'
+import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, summaryOf, toStacks, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
 import { TERMINALS } from './terminals'
@@ -80,13 +80,9 @@ async function refresh($: EngineInterface, options: PluginOptions) {
   await update($, snapshot, (old): Snapshot => ({ prs: failed ? (old?.prs ?? []) : prs, updatedAt: now, project, error: error || undefined }))
 }
 
-// cloneDir placeholders are plain text, not shell-quoted like the command ones
-const plain = (template: string, vars: Record<string, string>) => template.replace(/\{(\w+)\}/g, (match, name: string) => vars[name] ?? match)
-
 // the session name for a PR, e.g. pr-3109-worker; anything outside [A-Za-z0-9._-] becomes '-', empty turns naming off
 const sessionNameOf = (options: PluginOptions, pr: Pr) =>
-  options.autoRename === false ? '' : plain(typeof options.sessionName === 'string' ? options.sessionName.trim() : '', { number: String(pr.number), repo: pr.repo })
-    .replace(/[^\w.-]+/g, '-')
+  options.autoRename === false ? '' : plain(str(options.sessionName).trim(), prVars(pr)).replace(/[^\w.-]+/g, '-')
 
 // where the PR's repo is cloned, undefined when cloneDir is blank
 async function cloneDirOf($: EngineInterface, options: PluginOptions, pr: Pr) {
@@ -257,7 +253,7 @@ export const register: Register = (on, options) => {
     // place: 'move' when drawn in Your move, since the same PR can also sit in its repo section
     const card = (pr: Pr, i: number, isStack: boolean, place = '') => {
       const action = nextAction(pr, i === 0)
-      const work = workAction(pr, action, options.showCopilotPass !== false)
+      const work = workAction(pr, action, options.showCopilotPass !== false, str(options.workPrompt))
       const ci = ciLine(pr)
       const review = reviewLine(pr)
       const { color: statusColor, status } = tone(pr, action)
@@ -353,15 +349,13 @@ export const register: Register = (on, options) => {
                 key={key('review')}
                 label={label('✦ Fable review')}
                 onPress={() =>
-                  submit(
-                    `Spawn a subagent with model fable to review ${pr.url} against the repo's own standards. Report findings to me, do not post anything to ${pr.host}.`,
-                  )
+                  submit(plain(str(options.fablePrompt).trim() || DEFAULT_FABLE_PROMPT, prVars(pr)))
                 }
               />
             )}
             <Button key={key('work')} label={label(work.label)} onPress={() => work.prompt && submit(work.prompt)} />
             <Button key={key('switch')} label={label('⎇ Switch here')} onPress={() => void switchHere(pr)} />
-            <Button key={key('new-session')} label={label('⧉ New session')} onPress={() => void newSession(pr, workAction(pr, action, false).prompt ?? '')} />
+            <Button key={key('new-session')} label={label('⧉ New session')} onPress={() => void newSession(pr, workAction(pr, action, false, str(options.workPrompt)).prompt ?? '')} />
           </Box>
         </Box>
       )

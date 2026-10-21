@@ -166,8 +166,20 @@
     "sessionName": {
       "type": "string",
       "title": "Session name",
-      "description": "Name given to the session that New session opens or Switch here moves. {number} is the PR number and {repo} the repo name. Empty leaves sessions unnamed.",
-      "default": "pr-{number}-worker"
+      "description": "Name given to the session that New session opens or Switch here moves. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}. Empty leaves sessions unnamed.",
+      "default": "pr-{pr}-worker"
+    },
+    "fablePrompt": {
+      "type": "string",
+      "title": "Fable review prompt",
+      "description": "Prompt the Fable review button sends. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}. Empty uses the default.",
+      "default": "Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}."
+    },
+    "workPrompt": {
+      "type": "string",
+      "title": "Work on it prompt",
+      "description": "Prompt the Work on it button sends, and the first prompt of New session. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}. Empty uses the default.",
+      "default": "Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions."
     }
   }
 }
