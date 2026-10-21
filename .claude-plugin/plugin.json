@@ -1,7 +1,7 @@
 {
   "name": "pr-deck",
-  "version": "0.2.0",
-  "description": "Pane listing your open PRs across repos, grouped into stacks, with next-action buttons",
+  "version": "0.3.0",
+  "description": "Pane listing your open PRs across code hosts, grouped into stacks, with next-action buttons and a state file other tools can watch",
   "author": { "name": "Lucas Santos", "url": "https://github.com/khaosdoctor" },
   "homepage": "https://github.com/khaosdoctor/claude-pr-list-mod",
   "repository": "https://github.com/khaosdoctor/claude-pr-list-mod",
@@ -186,7 +186,7 @@
       "type": "string",
       "title": "Watch prompt",
       "description": "Prompt the Watch button sends; empty uses the default. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
-      "default": "Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes (wait in the background, e.g. `gh pr checks {pr} --repo {fullName} --watch`), tell me about each change in one line, and stop as soon as CI passes and nothing else needs me."
+      "default": "Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes, waiting in the background between checks, tell me about each change in one line, and stop as soon as CI passes and nothing else needs me."
     },
     "stateFile": {
       "type": "string",
