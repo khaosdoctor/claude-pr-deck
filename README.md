@@ -22,7 +22,7 @@ Under the CI, review and diff stats you get the ticket key, linking to your trac
 
 ***⇄ move***, in the first button row, overrides the status when the automatic one is wrong, say a PR marked ***● needs you*** that you cannot do anything about. Each press cycles to the next status (***○ waiting***, ***● needs you***, ***✓ approved***, then back to ***auto***). An overridden PR gets a dim ✎ before its status, and everything that depends on the status follows: colour, group, ***● YOUR MOVE*** and the ***NEED YOU*** count. Overrides are saved in the config file.
 
-The pane scopes to the repo the session runs in, with a button to show all repos instead. Repos and stacks collapse, and repos you do not care about can be ignored.
+The pane scopes to the repo the session runs in, with a button to show all repos instead. Repos and stacks collapse, and repos you do not care about can be ignored. ***⊖ collapse*** folds one level per press (cards to their title line, then status groups and stacks, then repos and ***● YOUR MOVE***) and ***⊕ expand*** unfolds them in reverse; the collapse button shows the current level out of 3.
 
 ### Your move and card colours
 

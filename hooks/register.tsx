@@ -304,6 +304,33 @@ export const register: Register = (on, options) => {
       return statusOf(bottom, 0)
     }
     const groupColor = (key: string) => STATUS_COLOR[key] ?? 'suggestion'
+    // fold levels, each adding to the one below: 1 cards, 2 status groups and stacks, 3 repos and Your move
+    const startFolded = options.startCollapsed === true
+    const cardIds = prs.map(pr => `pr:${pr.url}`)
+    const sectionIds = [
+      ...new Set([
+        ...(pinMoves && grouping === 'status' ? moves.map(m => `status:move:${m.pr.repo}:${statusOf(m.pr, m.i)}`) : []),
+        ...sections.filter(s => groupOf(s)).map(s => `status:repo:${s.repo}:${groupOf(s)}`),
+        ...sections.filter(s => s.prs.length > 1).map(s => `stack:${s.prs[0]?.url}`),
+      ]),
+    ]
+    const topIds = [...repos, ...(pinMoves ? [YOUR_MOVE] : [])]
+    const levelSize = [0, cardIds.length, sectionIds.length, topIds.length]
+    // the level comes from what is folded now, so a hand-folded repo counts as level 3
+    const foldLevel = (() => {
+      if (topIds.some(id => folded.has(id))) return 3
+      if (sectionIds.some(id => folded.has(id))) return 2
+      return cardIds.some(id => folded.has(id) !== startFolded) ? 1 : 0
+    })()
+    // the list holds PRs toggled away from the startCollapsed default
+    const foldTo = (level: number) =>
+      update($, collapsed, () => [
+        ...cardIds.filter(() => (level >= 1) !== startFolded),
+        ...(level >= 2 ? sectionIds : []),
+        ...(level >= 3 ? topIds : []),
+      ])
+    // a level with nothing to fold is skipped, or the press would change nothing
+    const collapseTo = [1, 2, 3].find(n => n > foldLevel && levelSize[n])
     // place: 'move' when drawn in Your move, since the same PR can also sit in its repo section
     const card = (pr: Pr, i: number, isStack: boolean, place = '') => {
       const action = nextAction(pr, i === 0, statePrompts)
@@ -442,6 +469,8 @@ export const register: Register = (on, options) => {
                 if (deny) $.ui.toast(deny)
               }}
             />
+            <Button key="collapse" label={label(`⊖ collapse ${foldLevel}/3`)} onPress={() => collapseTo && foldTo(collapseTo)} />
+            <Button key="expand" label={label('⊕ expand')} onPress={() => foldLevel > 0 && foldTo(foldLevel - 1)} />
             <Button key="refresh" label={label('↻ Refresh')} onPress={() => refresh($, options)} />
             <Button key="config" label={label('⚙ Config')} onPress={() => update($, view, () => 'config')} />
           </Box>
