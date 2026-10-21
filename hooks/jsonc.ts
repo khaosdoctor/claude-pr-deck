@@ -12,4 +12,8 @@ export function stripJsonComments(text: string) {
     .replace(STRING_OR_TRAILING_COMMA, (match, tail?: string) => tail ?? match)
 }
 
-export const parseJsonc = (text: string): unknown => JSON.parse(stripJsonComments(text))
+// A file with nothing but whitespace and comments is an empty object, not an "Unexpected end of JSON input".
+export function parseJsonc(text: string): unknown {
+  const json = stripJsonComments(text)
+  return json.trim() ? JSON.parse(json) : {}
+}

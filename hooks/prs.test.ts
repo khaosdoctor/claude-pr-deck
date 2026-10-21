@@ -376,7 +376,7 @@ test('the state file groups PRs per repo with the pane status and the manual ove
     const isManual = p.number === 2
     return { action, status: isManual ? '○ waiting' : action.prompt ? '● needs you' : '○ waiting', needsMe: !isManual && Boolean(action.prompt), isManual }
   }
-  const state = stateFileOf([pr({ number: 1, ci: 'FAILURE', head: 'a' }), pr({ number: 2, head: 'b', base: 'a' }), pr({ number: 9, fullName: 'acme/web', repo: 'web' })], statusFor, 0, 'gitlab failed')
+  const state = stateFileOf([pr({ number: 1, ci: 'FAILURE', head: 'a' }), pr({ number: 2, head: 'b', base: 'a' }), pr({ number: 9, fullName: 'acme/web', repo: 'web' })], statusFor, 0, 'gitlab failed', ['acme/web'])
 
   expect(state.updatedAt).toBe('1970-01-01T00:00:00.000Z')
   expect(state.error).toBe('gitlab failed')
@@ -385,16 +385,17 @@ test('the state file groups PRs per repo with the pane status and the manual ove
     {
       number: 1, title: 'ABC-1: thing', url: 'https://github.com/acme/api/pull/1', branch: 'a', base: 'main', provider: 'github', host: 'github.com',
       draft: false, ci: 'FAILURE', review: 'REVIEW_REQUIRED', mergeable: 'MERGEABLE', unresolved: 0,
-      state: 'ci-failed', status: 'needs you', needsYou: true, nextAction: 'Fix CI',
+      state: 'ci-failed', status: 'needs you', needsYou: true, ignored: false, nextAction: 'Fix CI',
     },
     expect.objectContaining({ number: 2, state: 'in-review', status: 'waiting', needsYou: false, override: 'waiting' }),
   ])
+  expect(state.repos['acme/web']).toEqual([expect.objectContaining({ number: 9, ignored: true })])
   expect(stateFileOf([], statusFor, 0)).toEqual({ updatedAt: '1970-01-01T00:00:00.000Z', repos: {} })
 })
 
 test('the watch prompt takes the state template, then the option, then the default', () => {
   const watched = pr({ number: 5 })
-  expect(watchPrompt(watched, 'in-review')).toContain('gh pr checks 5 --repo acme/api --watch')
+  expect(watchPrompt(watched, 'in-review')).toContain('with gh every few minutes')
   expect(watchPrompt(watched, 'in-review', 'Watch #{pr}')).toBe('Watch #5')
   expect(watchPrompt(watched, 'in-review', 'Watch #{pr}', { 'in-review': { watch: 'Poll {url}' } })).toBe('Poll https://github.com/acme/api/pull/1')
   expect(watchPrompt(watched, 'draft', '  ', { 'in-review': { watch: 'Poll {url}' } })).toContain('Watch https://github.com/acme/api/pull/1 until it is green')

@@ -65,7 +65,7 @@ export const DEFAULT_FABLE_PROMPT = "Spawn a subagent with model fable to review
 const DEFAULT_WORK_PROMPT =
   'Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.'
 export const DEFAULT_WATCH_PROMPT =
-  'Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes (wait in the background, e.g. `gh pr checks {pr} --repo {fullName} --watch`), tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.'
+  'Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes, waiting in the background between checks, tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.'
 
 // Per state: the button label, when it applies (the order of the keys is the order of the checks in stateOf)
 // and the default next-action prompt. States without a prompt only wait, unless the prompts file gives them one.
@@ -178,7 +178,8 @@ export const watchPrompt = (pr: Pr, state: ActionState, template?: string, promp
 export type PrStatus = { action: Action; status: string; needsMe: boolean; isManual: boolean }
 
 // The JSON other tools watch, PRs per owner/repo. Statuses lose their pane glyph ("● needs you" is "needs you").
-export function stateFileOf(prs: Pr[], statusFor: (pr: Pr, isBottom: boolean) => PrStatus, updatedAt: number, error?: string) {
+// Ignored repos stay in, marked, so a watcher can match the pane's count or not.
+export function stateFileOf(prs: Pr[], statusFor: (pr: Pr, isBottom: boolean) => PrStatus, updatedAt: number, error?: string, ignored: string[] = []) {
   const repos: Record<string, object[]> = {}
   for (const stack of toStacks(prs)) {
     for (const [i, pr] of stack.prs.entries()) {
@@ -200,6 +201,7 @@ export function stateFileOf(prs: Pr[], statusFor: (pr: Pr, isBottom: boolean) =>
         state: action.state,
         status: shown,
         needsYou: needsMe,
+        ignored: ignored.includes(pr.fullName),
         nextAction: action.label,
         override: isManual ? shown : undefined,
       }

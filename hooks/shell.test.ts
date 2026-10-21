@@ -2,6 +2,9 @@ import { expect, test } from 'claude-code/testing'
 
 import type { EngineInterface } from 'claude-code'
 
+import { parseJsonc } from './jsonc'
+import { repoFromRemote } from './providers'
+import { github } from './providers/github'
 import { fill, quote, run } from './run'
 import { TERMINALS } from './terminals'
 
@@ -50,4 +53,45 @@ test('shellPrompt comes out quoted twice, so the pane shell sees the quoted prom
   const prompt = "it's"
   const command = fill(herdr?.command ?? '', { dir: '/d', label: 'l', shellPrompt: quote(prompt) })
   expect(command).toContain(quote(quote(prompt)))
+})
+
+test('a prompts file with only whitespace or comments is an empty object', () => {
+  expect(parseJsonc('')).toEqual({})
+  expect(parseJsonc('  \n\t\n')).toEqual({})
+  expect(parseJsonc('// nothing here yet\n/* or here */\n')).toEqual({})
+  expect(parseJsonc('﻿')).toEqual({})
+  expect(() => parseJsonc('{')).toThrow()
+})
+
+test('Azure DevOps remotes in every form give org/project/repo', () => {
+  expect(repoFromRemote('https://dev.azure.com/Acme/_git/Api')).toBe('acme/api/api')
+  expect(repoFromRemote('https://acme@dev.azure.com/Acme/_git/Api')).toBe('acme/api/api')
+  expect(repoFromRemote('https://acme.visualstudio.com/Proj/_git/Api')).toBe('acme/proj/api')
+  expect(repoFromRemote('https://acme.visualstudio.com/DefaultCollection/Proj/_git/Api')).toBe('acme/proj/api')
+  expect(repoFromRemote('https://acme.visualstudio.com/_git/Api')).toBe('acme/api/api')
+  expect(repoFromRemote('acme@vs-ssh.visualstudio.com:v3/Acme/Proj/Api')).toBe('acme/proj/api')
+  expect(repoFromRemote('https://dev.azure.com/Acme/My%20Proj/_git/Api.git')).toBe('acme/my%20proj/api')
+})
+
+const githubStdout = (node: object) =>
+  JSON.stringify({
+    data: { viewer: { pullRequests: { nodes: [{
+      number: 1, title: 't', bodyText: '', url: 'https://github.com/a/b/pull/1', isDraft: false, headRefName: 'h', baseRefName: 'main',
+      reviewDecision: null, mergeable: 'MERGEABLE', changedFiles: 1, additions: 1, deletions: 0,
+      repository: { name: 'b', nameWithOwner: 'a/b', viewerPermission: 'WRITE', defaultBranchRef: { name: 'main' } },
+      reviewRequests: { totalCount: 0, nodes: [] }, reviews: { nodes: [] }, reviewThreads: { nodes: [] }, commits: { nodes: [] },
+      ...node,
+    }] } } },
+  })
+
+test('GitHub falls back to the latest reviews when the repo does not require reviews', () => {
+  const latest = (...states: string[]) => ({ latestOpinionatedReviews: { nodes: states.map(state => ({ state })) } })
+  const review = (node: object) => github.parse(githubStdout(node))[0]?.review
+
+  expect(review(latest('APPROVED'))).toBe('APPROVED')
+  expect(review(latest('APPROVED', 'CHANGES_REQUESTED'))).toBe('CHANGES_REQUESTED')
+  expect(review(latest('DISMISSED'))).toBe('NONE')
+  expect(review({})).toBe('NONE')
+  // a decision from the host wins over the individual reviews
+  expect(review({ reviewDecision: 'REVIEW_REQUIRED', ...latest('APPROVED') })).toBe('REVIEW_REQUIRED')
 })

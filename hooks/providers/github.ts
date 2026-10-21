@@ -6,6 +6,7 @@ const query = `{viewer{pullRequests(first:50,states:OPEN,orderBy:{field:UPDATED_
   repository{name nameWithOwner viewerPermission defaultBranchRef{name}}
   reviewRequests(first:20){totalCount nodes{requestedReviewer{... on Bot{login} ... on User{login}}}}
   reviews(first:50){nodes{author{login}}}
+  latestOpinionatedReviews(first:20){nodes{state}}
   reviewThreads(first:100){nodes{isResolved}}
   commits(last:1){nodes{commit{statusCheckRollup{state contexts(first:100){nodes{
     __typename ... on CheckRun{status conclusion} ... on StatusContext{state}
@@ -17,6 +18,15 @@ const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED'])
 const CAN_REQUEST_REVIEW = new Set(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE'])
 
 type Context = { __typename: string; status?: string; conclusion?: string | null; state?: string }
+
+// reviewDecision is null when the repo does not require reviews, so the latest review of each person decides then
+function reviewOf(node: any): string {
+  if (node.reviewDecision) return node.reviewDecision
+  const states: string[] = (node.latestOpinionatedReviews?.nodes ?? []).map((r: { state: string }) => r.state)
+  if (states.includes('CHANGES_REQUESTED')) return 'CHANGES_REQUESTED'
+  if (states.includes('APPROVED')) return 'APPROVED'
+  return 'NONE'
+}
 
 // takes the raw GraphQL nodes as-is, no schema validation; gh is the trust boundary
 function toPr(node: any): Pr {
@@ -42,7 +52,7 @@ function toPr(node: any): Pr {
     head: node.headRefName,
     base: node.baseRefName,
     isDraft: node.isDraft,
-    review: node.reviewDecision ?? 'NONE',
+    review: reviewOf(node),
     mergeable: node.mergeable,
     ci: rollup?.state ?? 'NONE',
     checksPassed: passed,

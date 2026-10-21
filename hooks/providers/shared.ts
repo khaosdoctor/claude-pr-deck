@@ -54,13 +54,36 @@ export function hostOf(url: string): string {
   return url.match(/^https?:\/\/(?:[^@/]+@)?([^/:]+)/i)?.[1]?.toLowerCase() ?? ''
 }
 
+// Azure DevOps remotes: https://dev.azure.com/org/project/_git/repo, git@ssh.dev.azure.com:v3/org/project/repo and the
+// legacy https://org.visualstudio.com/[DefaultCollection/]project/_git/repo and org@vs-ssh.visualstudio.com:v3/org/project/repo.
+// A repo named like its project has a short https form without the project (.../org/_git/repo).
+const AZURE_REMOTE = /^(?:[\w+.-]+:\/\/)?(?:[^@/]+@)?((?:ssh\.)?dev\.azure\.com|vs-ssh\.visualstudio\.com|([^/:@.]+)\.visualstudio\.com)[:/](.+)$/i
+
+// org/project/repo, or undefined when the URL is not an Azure DevOps one
+function azureRepo(clean: string): string | undefined {
+  const match = clean.match(AZURE_REMOTE)
+  if (!match) return undefined
+  const [, host = '', legacyOrg, path = ''] = match
+  const segments = path.split('/')
+
+  if (/^(?:vs-)?ssh\./i.test(host)) return segments.length === 4 && segments[0] === 'v3' ? segments.slice(1).join('/').toLowerCase() : undefined
+
+  const git = segments.indexOf('_git')
+  const repo = segments[git + 1]
+  if (git < 0 || !repo) return undefined
+  const before = segments.slice(0, git).filter(segment => segment.toLowerCase() !== 'defaultcollection')
+  const [org, project] = legacyOrg ? [legacyOrg, before[0]] : before
+  if (!org) return undefined
+  return [org, project ?? repo, repo].join('/').toLowerCase()
+}
+
 // owner/repo from a git remote URL, ssh or https. GitLab subgroups keep the whole path
 // (group/sub/repo); Azure DevOps gives org/project/repo.
 export function repoFromRemote(url: string): string | undefined {
   const clean = url.trim().replace(/\/$/, '').replace(/\.git$/, '')
 
-  const azure = clean.match(/dev\.azure\.com[:/](?:v3\/)?([^/]+)\/([^/]+)\/(?:_git\/)?([^/]+)$/i)
-  if (azure) return azure.slice(1).join('/').toLowerCase()
+  const azure = azureRepo(clean)
+  if (azure) return azure
 
   const path = clean.match(/^(?:[\w+.-]+:\/\/)?(?:[^@/]+@)?[^/:]+(?::\d+(?=\/))?[:/](.+)$/)?.[1]
   if (!path?.includes('/')) return undefined

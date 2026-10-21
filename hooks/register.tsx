@@ -118,10 +118,11 @@ async function expandHome($: EngineInterface, path: string) {
 async function writeStateFile($: EngineInterface, options: PluginOptions) {
   const template = str(options.stateFile).trim()
   const snap = await read($, snapshot)
-  if (!template || !snap) return
+  // every host failed and nothing was known: keep the file another session wrote while it was online
+  if (!template || !snap || (snap.error && snap.prs.length === 0)) return
   const manual = await read($, overrides)
   const { map } = await read($, prompts)
-  const state = stateFileOf(snap.prs, (pr, isBottom) => resolveStatus(pr, isBottom, manual, map), snap.updatedAt, snap.error)
+  const state = stateFileOf(snap.prs, (pr, isBottom) => resolveStatus(pr, isBottom, manual, map), snap.updatedAt, snap.error, await read($, ignored))
   await $.fs.write(await expandHome($, template), `${JSON.stringify(state, null, 2)}\n`)
 }
 
@@ -144,11 +145,11 @@ async function refresh($: EngineInterface, options: PluginOptions) {
 async function watchCommand($: EngineInterface, options: PluginOptions, ref: string) {
   const known = await read($, snapshot)
   const first = findPr(known?.prs ?? [], ref, known?.project)
-  // the session may not have fetched yet, or the PR is newer than the last refresh
-  if (typeof first === 'string') await refresh($, options)
-  const snap = await read($, snapshot)
+  // the session may not have fetched yet, or the PR is newer than the last refresh; the PR and its stack come from the same snapshot
+  const snap = typeof first === 'string' ? await refresh($, options).then(() => read($, snapshot)) : known
   const pr = typeof first === 'string' ? findPr(snap?.prs ?? [], ref, snap?.project) : first
-  if (typeof pr === 'string') return pr
+  // a fetch that failed is the likelier reason nothing matched
+  if (typeof pr === 'string') return snap?.error ? `${pr} The last refresh failed: ${snap.error}` : pr
   const isBottom = toStacks(snap?.prs ?? []).find(stack => stack.prs.includes(pr))?.prs[0] === pr
   const { map } = await read($, prompts)
   const { action } = resolveStatus(pr, isBottom, await read($, overrides), map)
