@@ -150,14 +150,14 @@ Each command is a shell template run with `sh -c`. Placeholders in braces get th
 | Open URL command | `{url}` |
 | Open config file command | `{path}` |
 | Current repo command | none |
-| New session command | `{claude}`, `{dir}`, `{prompt}`, `{label}`, `{url}`, `{branch}`, `{repo}`, `{name}` |
+| New session command | `{claude}`, `{dir}`, `{prompt}`, `{shellPrompt}`, `{label}`, `{url}`, `{branch}`, `{repo}`, `{name}` |
 | Fetch commands | `{query}` (GitHub and GitLab) |
 
 **Current repo command** prints the remote URL of the session's repo, which is how the pane scopes to it.
 
 **Local clone folder** is where your repos are cloned, like `~/code/{host}/{owner}/{repo}`. `{host}`, `{owner}` and `{repo}` are filled in as plain text and a leading `~` is your home folder. ***⧉ New session*** starts there and ***⎇ Switch here*** tells the session to look there first. When empty, new sessions start in the current folder and ***Switch here*** asks the session to look around nearby folders.
 
-**New session command**: when empty, the mod picks the terminal from the session's own environment, multiplexers first: a herdr, tmux, zellij, WezTerm or kitty tab, else an Alacritty, Rio, Ghostty or iTerm window, and Terminal when nothing else matches. herdr needs `jq`, kitty needs `allow_remote_control yes` (or `listen_on`) in `kitty.conf`, and Warp has no way to start a command in a new tab so it ends up in Terminal; set your own command if you use it. A non-empty command replaces all of this. In it, `{dir}` is the clone folder, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch, `{repo}` the `owner/repo` name and `{name}` the session name. `{shellPrompt}` is the prompt already quoted for the terminal's own shell, for commands that type it into a pane like herdr does.
+**New session command**: when empty, the mod picks the terminal from the session's own environment, multiplexers first: a herdr, tmux, zellij, WezTerm or kitty tab, else an Alacritty, Rio, Ghostty or iTerm window, and Terminal when nothing else matches. herdr needs `jq`, kitty needs `allow_remote_control yes` (or `listen_on`) in `kitty.conf`, and Warp has no way to start a command in a new tab so it ends up in Terminal; set your own command if you use it. Rio and Ghostty start your login shell (`$SHELL`) and hand it the prompt in a `PR_DECK_PROMPT` variable, which works in sh-style shells and fish; with nushell, set your own command. A non-empty command replaces all of this. In it, `{dir}` is the clone folder, `{prompt}` the first prompt, `{label}` the PR name such as `#3109 repo`, `{url}` the PR link, `{branch}` its head branch, `{repo}` the `owner/repo` name and `{name}` the session name. `{shellPrompt}` is the prompt already quoted for the terminal's own shell, for commands that type it into a pane like herdr does.
 
 ### Prompts
 
@@ -181,7 +181,7 @@ These three are templates. Placeholders here are filled in as plain text (no she
 | `{host}` | code host name, such as `github.com` |
 | `{cli}` | the host's command line tool, such as `gh` |
 
-**Session name**: ***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>` on the current session. Anything that is not a letter, digit, `.`, `_` or `-` becomes `-`. Turn ***Auto rename sessions*** off, or leave the name empty, to skip naming. In your own new session command, `{claude}` is `claude` with that flag.
+**Session name**: ***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>` on the current session. Anything that is not an ASCII letter, digit, `.`, `_` or `-` becomes `-`. Turn ***Auto rename sessions*** off, or leave the name empty, to skip naming. In your own new session command, `{claude}` is `claude` with that flag.
 
 **Fable review prompt** is what ***✦ Fable review*** sends. **Work on it prompt** is what ***❯ Work on it*** sends, and the first prompt of ***⧉ New session***. Empty means the default. The ***✦ Copilot pass*** prompt cannot be changed.
 
@@ -213,8 +213,8 @@ You can also give the next-action button and ***❯ Work on it*** a different pr
 | `ci-failed` | a check failed |
 | `conflicts` | the PR has merge conflicts |
 | `comments` | changes were requested or review threads are unresolved |
-| `mergeable` | approved, CI passing, and the PR is alone or at the bottom of its stack |
-| `stack-below` | approved and green, but a PR below it in the stack is not merged yet |
+| `mergeable` | approved, no check failing or running, and the PR is alone or at the bottom of its stack |
+| `stack-below` | approved with no check failing, but a PR below it in the stack is not merged yet |
 | `ci-running` | checks are still running |
 | `no-reviewers` | nobody is asked to review yet |
 | `maintainers` | nobody is asked to review and you cannot request reviews on the repo |

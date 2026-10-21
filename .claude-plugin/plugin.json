@@ -155,7 +155,7 @@
     "newSessionCommand": {
       "type": "string",
       "title": "New session command",
-      "description": "Opens a new Claude session for a PR, with {claude}, {dir}, {prompt} and {label}; empty opens a tab or window in the terminal you are using.",
+      "description": "Opens a new Claude session for a PR, with {claude}, {dir}, {prompt}, {shellPrompt}, {label}, {url}, {branch}, {repo} and {name}; empty opens a tab or window in the terminal you are using.",
       "default": ""
     },
     "autoRename": {

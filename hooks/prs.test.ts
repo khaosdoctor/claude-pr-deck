@@ -8,6 +8,7 @@ import { azdo } from './providers/azdo'
 import { gitea } from './providers/gitea'
 import { github } from './providers/github'
 import { gitlab } from './providers/gitlab'
+import { ticketKey } from './providers/shared'
 
 test('summary skips short heading lines and caps at 30 chars', () => {
   expect(summaryOf('Summary\n\nAdds a pane that lists every open PR', 30)).toBe('Adds a pane that lists every…')
@@ -99,6 +100,47 @@ test('parses a Gitea pull request', () => {
     provider: 'gitea', host: 'git.example.com', fullName: 'acme/web', head: 'feat/y', isDraft: true,
     mergeable: 'CONFLICTING', ci: 'NONE', reviewRequests: 1, changedFiles: 4,
   })
+})
+
+test('versions and ids in branch names are not ticket keys', () => {
+  expect(ticketKey('dependabot/npm_and_yarn/lodash-4.17.21')).toBeUndefined()
+  expect(ticketKey('Fix CVE-2024-1234 in the parser')).toBeUndefined()
+  expect(ticketKey('lucas/eng-123-2fa-login')).toBe('ENG-123')
+  expect(ticketKey('ABC-12: bump lodash-4.17.21')).toBe('ABC-12')
+  expect(ticketKey('Done in ABC-12.')).toBe('ABC-12')
+})
+
+test('the Gitea fetch command runs under a POSIX sh and still fails when tea fails', () => {
+  expect(gitea.command).not.toContain('pipefail')
+  // every step stops the script when it fails, and printf keeps the \n inside the JSON from being expanded
+  expect(gitea.command).not.toContain('echo')
+  expect(gitea.command.split('\n').filter(line => line.includes('|| exit 1'))).toHaveLength(3)
+})
+
+test('a GitLab pipeline waiting for a callback counts as running', () => {
+  const stdout = JSON.stringify({
+    data: { currentUser: { authoredMergeRequests: { nodes: [{
+      iid: '5', title: 'Fix it', description: '', webUrl: 'https://gitlab.com/group/repo/-/merge_requests/5',
+      draft: false, sourceBranch: 'fix', targetBranch: 'main', conflicts: false, approved: true,
+      diffStatsSummary: null, headPipeline: { status: 'WAITING_FOR_CALLBACK' }, reviewers: { nodes: [] }, discussions: { nodes: [] },
+      project: { name: 'repo', fullPath: 'group/repo', repository: null },
+    }] } } },
+  })
+  const [parsed] = gitlab.parse(stdout)
+  expect(parsed?.ci).toBe('PENDING')
+  expect(nextAction(parsed as Pr, true).state).toBe('ci-running')
+})
+
+test('Azure DevOps takes owner/project/repo from the clone URL when webUrl carries the project id', () => {
+  const stdout = JSON.stringify([{
+    pullRequestId: 12, title: 'Add thing', description: '', isDraft: false,
+    sourceRefName: 'refs/heads/feat/z', targetRefName: 'refs/heads/main', mergeStatus: 'succeeded', reviewers: [],
+    repository: {
+      name: 'Api', webUrl: 'https://dev.azure.com/acme/6ce954b1-ce1f-45d1-b94d-e6bf2464ba2c/_git/Api',
+      remoteUrl: 'https://acme@dev.azure.com/acme/Proj/_git/Api',
+    },
+  }])
+  expect(azdo.parse(stdout)[0]?.fullName).toBe('acme/proj/api')
 })
 
 test('parses an Azure DevOps pull request', () => {

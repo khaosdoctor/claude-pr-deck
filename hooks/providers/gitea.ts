@@ -33,12 +33,18 @@ function toPr(node: any): Pr {
 }
 
 // the issue search lists my PRs across repos but without branches, so each one is fetched
-// from its pull endpoint and jq slurps the objects into one array; needs jq next to tea
+// from its pull endpoint and jq slurps the objects into one array; needs jq next to tea.
+// Each step is its own assignment so a failing tea or jq stops the script under any POSIX sh
+// (no pipefail), and printf keeps dash's echo from expanding the \n inside the JSON.
 export const gitea: Provider = {
   id: 'gitea',
   cli: 'tea',
-  command:
-    "set -o pipefail; tea api '/repos/issues/search?type=pulls&state=open&created=true&limit=50' | jq -r '.[] | \"\\(.repository.full_name) \\(.number)\"' | while read -r repo number; do tea api \"/repos/$repo/pulls/$number\"; done | jq -s .",
+  command: [
+    String.raw`list=$(tea api '/repos/issues/search?type=pulls&state=open&created=true&limit=50') || exit 1`,
+    String.raw`paths=$(printf '%s\n' "$list" | jq -r '.[] | "\(.repository.full_name)/pulls/\(.number)"') || exit 1`,
+    String.raw`out=$(for path in $paths; do tea api "/repos/$path" || exit 1; done) || exit 1`,
+    String.raw`printf '%s\n' "$out" | jq -s .`,
+  ].join('\n'),
   parse: stdout => JSON.parse(stdout).map(toPr),
   readyHint: 'tea api -X PATCH on the pull request, sending its title without the WIP: or Draft: prefix',
   supportsCopilot: false,

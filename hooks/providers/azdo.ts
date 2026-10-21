@@ -27,7 +27,8 @@ function toPr(node: any): Pr {
     title: node.title,
     url: `${repository.webUrl}/pullrequest/${node.pullRequestId}`,
     repo: repository.name,
-    fullName: repoFromRemote(repository.webUrl) ?? repository.name.toLowerCase(),
+    // webUrl can carry the project id instead of its name; remoteUrl is the clone URL, the same shape as the git remote
+    fullName: repoFromRemote(repository.remoteUrl ?? repository.webUrl) ?? repository.name.toLowerCase(),
     trunk: branchOf(repository.defaultBranch ?? 'refs/heads/main'),
     head,
     base: branchOf(node.targetRefName),

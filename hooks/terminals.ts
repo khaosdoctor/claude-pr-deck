@@ -31,16 +31,17 @@ export const TERMINALS: Terminal[] = [
     command: 'alacritty msg create-window --working-directory {dir} -e {claude} {prompt}',
   },
   // always a new Rio instance, like Ghostty; flags written from Rio's docs
+  // the prompt travels in an environment variable: the login shell is the user's own, and fish gives -c arguments to $argv with no $0
   {
     name: 'Rio',
     test: env => env.program === 'rio',
-    command: 'open -na Rio --args --working-dir {dir} -e "${SHELL:-/bin/sh}" -lic \'exec {claude} "$0"\' {prompt}',
+    command: 'open -na Rio --env PR_DECK_PROMPT={prompt} --args --working-dir {dir} -e "${SHELL:-/bin/sh}" -lic \'exec {claude} "$PR_DECK_PROMPT"\'',
   },
   // always a new Ghostty instance, since the macOS CLI cannot add a window to a running one; a login shell finds claude on PATH
   {
     name: 'Ghostty',
     test: env => env.bundleId === 'com.mitchellh.ghostty' || env.program === 'ghostty',
-    command: 'open -na Ghostty --args --working-directory={dir} -e "${SHELL:-/bin/sh}" -lic \'exec {claude} "$0"\' {prompt}',
+    command: 'open -na Ghostty --env PR_DECK_PROMPT={prompt} --args --working-directory={dir} -e "${SHELL:-/bin/sh}" -lic \'exec {claude} "$PR_DECK_PROMPT"\'',
   },
   {
     name: 'iTerm',

@@ -1,5 +1,6 @@
-// Ticket keys look like ABC-123 in both Jira and Linear
-export const TICKET_KEY = /\b[A-Z][A-Z0-9]+-\d+\b/i
+// Ticket keys look like ABC-123 in both Jira and Linear. A number followed by .5 or -5 is a version or
+// an id (lodash-4.17.21, CVE-2024-1234), not a key; ENG-1-2fa-login still is one.
+export const TICKET_KEY = /\b[A-Z][A-Z0-9]+-\d+\b(?!\.\d|-\d+\b)/i
 
 export function ticketKey(text: string): string | undefined {
   return text.match(TICKET_KEY)?.[0].toUpperCase()

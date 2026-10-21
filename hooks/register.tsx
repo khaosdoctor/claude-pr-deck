@@ -7,7 +7,7 @@ import { parseJsonc } from './jsonc'
 import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, summaryOf, toStacks, toStatePrompts, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
-import { keepFailedHosts, parseConfig } from './snapshot'
+import { keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, splitFullName } from './snapshot'
 import { TERMINALS } from './terminals'
 import type { TerminalEnv } from './terminals'
 
@@ -122,16 +122,15 @@ async function refresh($: EngineInterface, options: PluginOptions) {
   await update($, snapshot, (old): Snapshot => ({ prs: keepFailedHosts(prs, old?.prs ?? [], errors), updatedAt: now, project, error: error || undefined }))
 }
 
-// the session name for a PR, e.g. pr-3109-worker; anything outside [A-Za-z0-9._-] becomes '-', empty turns naming off
+// the session name for a PR, e.g. pr-3109-worker; empty turns naming off
 const sessionNameOf = (options: PluginOptions, pr: Pr) =>
-  options.autoRename === false ? '' : plain(str(options.sessionName).trim(), prVars(pr)).replace(/[^\w.-]+/g, '-')
+  options.autoRename === false ? '' : safeSessionName(plain(str(options.sessionName).trim(), prVars(pr)))
 
 // where the PR's repo is cloned, undefined when cloneDir is blank
 async function cloneDirOf($: EngineInterface, options: PluginOptions, pr: Pr) {
   const template = str(options.cloneDir).trim()
   if (!template) return undefined
-  const cut = pr.fullName.lastIndexOf('/')
-  const dir = plain(template, { host: pr.host, owner: pr.fullName.slice(0, cut), repo: pr.fullName.slice(cut + 1) })
+  const dir = plain(template, { host: pr.host, ...splitFullName(pr.fullName) })
   if (dir !== '~' && !dir.startsWith('~/')) return dir
   return `${(await $.env.get('HOME')) ?? ''}${dir.slice(1)}`
 }
@@ -183,8 +182,8 @@ export const register: Register = (on, options) => {
   const isAttention = !['status', 'repo', 'random'].includes(str(options.cardColors))
   const cardModes = ['attention', 'status', 'repo', 'random']
   const cardMode = isAttention ? 'attention' : str(options.cardColors)
-  const cardColor = (pr: Pr, status: string, needsMe: boolean) => {
-    if (options.cardColors === 'repo') return repoColor(pr.repo)
+  const cardColor = (pr: Pr, repo: string, status: string, needsMe: boolean) => {
+    if (options.cardColors === 'repo') return repoColor(repo)
     if (options.cardColors === 'random') return repoColor(pr.url)
     if (isAttention) return needsMe ? status : 'subtle'
     return status
@@ -251,7 +250,10 @@ export const register: Register = (on, options) => {
     const pinMoves = options.pinYourMove !== false && moves.length > 0
     // a stack where every PR needs you moves to Your move whole; a stack where only some do stays intact in its repo and those PRs show in both places
     const sections = pinMoves ? stacks.filter(s => !s.prs.every((pr, i) => statusFor(pr, i).needsMe)) : stacks
-    const repos = [...new Set(sections.map(s => s.repo))]
+    // sections are named by repoKey, so two repos with the same short name stay apart
+    const repoKey = repoKeyOf(snap.prs)
+    const sectionRepo = (stack: Stack) => (stack.prs[0] ? repoKey(stack.prs[0]) : stack.repo)
+    const repos = [...new Set(sections.map(sectionRepo))]
     // numbered by bottom PR so a stack keeps its number when grouping changes
     // PR numbers repeat across repos, so the url identifies the bottom PR
     const bottoms = stacks
@@ -307,8 +309,8 @@ export const register: Register = (on, options) => {
     const cardIds = prs.map(pr => `pr:${pr.url}`)
     const sectionIds = [
       ...new Set([
-        ...(pinMoves && grouping === 'status' ? moves.map(m => `status:move:${m.pr.repo}:${statusOf(m.pr, m.i)}`) : []),
-        ...sections.filter(s => groupOf(s)).map(s => `status:repo:${s.repo}:${groupOf(s)}`),
+        ...(pinMoves && grouping === 'status' ? moves.map(m => `status:move:${repoKey(m.pr)}:${statusOf(m.pr, m.i)}`) : []),
+        ...sections.filter(s => groupOf(s)).map(s => `status:repo:${sectionRepo(s)}:${groupOf(s)}`),
         ...sections.filter(s => s.prs.length > 1).map(s => `stack:${s.prs[0]?.url}`),
       ]),
     ]
@@ -343,7 +345,7 @@ export const register: Register = (on, options) => {
       const ci = ciLine(pr)
       const review = reviewLine(pr)
       const { color: statusColor, status, needsMe, isManual } = statusFor(pr, i)
-      const color = cardColor(pr, statusColor, needsMe)
+      const color = cardColor(pr, repoKey(pr), statusColor, needsMe)
       const isDim = isAttention && !needsMe
       const hasBar = isAttention && needsMe
       const foldKey = `pr:${pr.url}`
@@ -374,7 +376,7 @@ export const register: Register = (on, options) => {
       const bar = hasBar && (
         <Box position="absolute" top={0} bottom={0} left={0} width={1} overflow="hidden">
           {/* grouped by status, the headers say the status, so the bar carries the repo; ungrouped, it carries the status */}
-          <Text color={grouping === 'status' ? repoColor(pr.repo) : statusColor}>{'┃\n'.repeat(60)}</Text>
+          <Text color={grouping === 'status' ? repoColor(repoKey(pr)) : statusColor}>{'┃\n'.repeat(60)}</Text>
         </Box>
       )
 
@@ -495,8 +497,8 @@ export const register: Register = (on, options) => {
               <Text dimColor>{moves.length}</Text>
             </Button>
             {!folded.has(YOUR_MOVE) &&
-              [...new Set(moves.map(m => m.pr.repo))].map(repo => {
-                const mine = moves.filter(m => m.pr.repo === repo)
+              [...new Set(moves.map(m => repoKey(m.pr)))].map(repo => {
+                const mine = moves.filter(m => repoKey(m.pr) === repo)
                 // moves are already sorted by status, so the keys come out in attention order
                 const keys = [...new Set(mine.map(m => (grouping === 'none' ? '' : statusOf(m.pr, m.i))))]
                 return (
@@ -532,7 +534,7 @@ export const register: Register = (on, options) => {
                   {' '}
                   {folded.has(repo) ? '▸' : '▾'} {repo.toUpperCase()}{' '}
                 </Text>{' '}
-                <Text dimColor>{sections.filter(s => s.repo === repo).reduce((n, s) => n + s.prs.length, 0)}</Text>
+                <Text dimColor>{sections.filter(s => sectionRepo(s) === repo).reduce((n, s) => n + s.prs.length, 0)}</Text>
               </Button>
               <Text>  </Text>
               <Button
@@ -541,7 +543,7 @@ export const register: Register = (on, options) => {
                 dimColor
                 label="⊘ ignore"
                 onPress={() => {
-                  const name = snap.prs.find(pr => pr.repo === repo)?.fullName ?? repo
+                  const name = snap.prs.find(pr => repoKey(pr) === repo)?.fullName ?? repo
                   void saveIgnored($, list => (list.includes(name) ? list : [...list, name]))
                 }}
               />
@@ -550,10 +552,10 @@ export const register: Register = (on, options) => {
             <Box width="100%" height={1} overflow="hidden">
               <Text color={repoColor(repo)}>{'━'.repeat(500)}</Text>
             </Box>
-            {[...new Set(sections.filter(s => s.repo === repo && !folded.has(repo)).map(groupOf))]
+            {[...new Set(sections.filter(s => sectionRepo(s) === repo && !folded.has(repo)).map(groupOf))]
               .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
               .map(key => {
-                const group = sections.filter(s => s.repo === repo && groupOf(s) === key)
+                const group = sections.filter(s => sectionRepo(s) === repo && groupOf(s) === key)
                 // status ids are prefixed so they never clash with repo names, stack: or pr: keys
                 const statusId = `status:repo:${repo}:${key}`
                 const isGroupFolded = key !== '' && folded.has(statusId)
