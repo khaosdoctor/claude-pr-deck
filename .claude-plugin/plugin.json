@@ -1,6 +1,6 @@
 {
   "name": "pr-deck",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Pane listing your open PRs across code hosts, grouped into stacks, with next-action buttons and a state file other tools can watch",
   "author": { "name": "Lucas Santos", "url": "https://github.com/khaosdoctor" },
   "homepage": "https://github.com/khaosdoctor/claude-pr-list-mod",
@@ -167,7 +167,7 @@
     "sessionName": {
       "type": "string",
       "title": "Session name",
-      "description": "Name for the session that New session opens or Switch here moves; empty leaves it unnamed. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
+      "description": "Name for the session that New session opens or Switch here moves; empty uses the default, turn Auto rename sessions off to skip naming. Placeholders: {pr} (or {number}), {url}, {title}, {branch}, {base}, {repo}, {fullName}, {host}, {cli}.",
       "default": "pr-{pr}-worker"
     },
     "fablePrompt": {
@@ -191,7 +191,7 @@
     "stateFile": {
       "type": "string",
       "title": "State file",
-      "description": "JSON file rewritten on every refresh with every PR picked up, grouped by repo, for other tools to watch; empty turns it off.",
+      "description": "JSON file rewritten on every refresh with every PR picked up, grouped by repo, for other tools to watch; off turns it off, empty uses the default.",
       "default": "~/.cache/pr-deck/state.json"
     }
   }
