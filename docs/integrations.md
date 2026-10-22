@@ -42,7 +42,7 @@ pr-deck keeps a JSON file with its PRs and their states, so a status bar, script
 The path is the **State file** option, `~/.cache/pr-deck/state.json` by default.
 
 - A leading `~` is your home folder, and the folder is created when missing.
-- An empty value turns the file off.
+- `off` turns the file off. An empty value uses the default.
 - PRs are grouped by `owner/repo`: the full group path on GitLab, `org/project/repo` on Azure DevOps.
 - PRs of ignored repos and of repos outside the session's project are listed too.
 - A PR stacked on another one lists the bottom of the stack first.

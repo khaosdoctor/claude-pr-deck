@@ -70,7 +70,7 @@ Filled in as plain text, with no shell quoting. An unknown one stays as written.
 ***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>`.
 
 - Anything that is not an ASCII letter, digit, `.`, `_` or `-` becomes `-`, and leading dashes are dropped.
-- An empty name, or ***Auto rename sessions*** off, skips naming.
+- ***Auto rename sessions*** off skips naming. An empty name uses the default.
 
 ## Prompts per state
 

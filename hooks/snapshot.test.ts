@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Pr } from '../types'
-import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
+import { findPr, guarded, textOption, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
 
 const pr = (provider: string, number: number) => ({ provider, number, url: `https://${provider}.test/${number}` }) as Pr
 
@@ -110,4 +110,12 @@ test('text that is not a JSON object is unreadable, not empty', () => {
   expect(parseConfig('{"ignored": [', [])).toBeUndefined()
   expect(parseConfig('null', [])).toBeUndefined()
   expect(parseConfig('[]', [])).toBeUndefined()
+})
+
+test('a blank text option falls back to its default', () => {
+  expect(textOption({ openCommand: '' }, 'openCommand')).toBe('open {url}')
+  expect(textOption({ sessionName: '   ' }, 'sessionName')).toBe('pr-{pr}-worker')
+  expect(textOption({}, 'stateFile')).toBe('~/.cache/pr-deck/state.json')
+  expect(textOption({ openCommand: ' xdg-open {url} ' }, 'openCommand')).toBe('xdg-open {url}')
+  expect(textOption({ cloneDir: '' }, 'cloneDir')).toBe('')
 })

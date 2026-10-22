@@ -59,7 +59,22 @@ export function findPr(prs: Pr[], ref: string, project?: string): Pr | string {
   return `#${number} is open in ${found.map(pr => pr.fullName).join(', ')}, pass owner/repo#${number}.`
 }
 
-export type StoredConfig ={ ignored: string[]; overrides: Record<string, string> }
+// A text field can be stored as "" (an install dialog that shows it empty, a cleared /config row), which hides its manifest default,
+// so a blank one falls back here. Keep in sync with the defaults in plugin.json.
+const TEXT_DEFAULTS: Record<string, string> = {
+  openCommand: 'open {url}',
+  editorCommand: 'open -t {path}',
+  remoteCommand: 'git remote get-url origin',
+  sessionName: 'pr-{pr}-worker',
+  stateFile: '~/.cache/pr-deck/state.json',
+}
+
+export function textOption(options: Readonly<Record<string, unknown>>, key: string): string {
+  const value = options[key]
+  return (typeof value === 'string' ? value.trim() : '') || TEXT_DEFAULTS[key] || ''
+}
+
+export type StoredConfig = { ignored: string[]; overrides: Record<string, string> }
 
 // undefined when the text is not a JSON object, so a half-edited file never reads as an empty config.
 export function parseConfig(text: string, statuses: string[]): StoredConfig | undefined {

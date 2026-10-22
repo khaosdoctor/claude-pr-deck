@@ -7,7 +7,7 @@ import { parseJsonc } from './jsonc'
 import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, stateFileOf, summaryOf, toStacks, toStatePrompts, watchPrompt, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
-import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
+import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName, textOption } from './snapshot'
 import { TERMINALS } from './terminals'
 import type { TerminalEnv } from './terminals'
 
@@ -105,7 +105,7 @@ function saveIgnored($: EngineInterface, list: (current: string[]) => string[]) 
 async function openFile($: EngineInterface, options: PluginOptions, name: string, create: (path: string) => Promise<unknown>) {
   const path = await configFile($, name)
   if (!(await $.fs.exists(path))) await create(path)
-  toastFailure($, await run($, str(options.editorCommand), { path }))
+  toastFailure($, await run($, textOption(options, 'editorCommand'), { path }))
 }
 
 // a leading ~ is the home folder
@@ -114,9 +114,10 @@ async function expandHome($: EngineInterface, path: string) {
   return `${(await $.env.get('HOME')) ?? ''}${path.slice(1)}`
 }
 
-// Other tools watch this file; empty stateFile turns it off. $.fs has no rename, so it is a plain write.
+// Other tools watch this file; stateFile "off" turns it off. $.fs has no rename, so it is a plain write.
 async function writeStateFile($: EngineInterface, options: PluginOptions) {
-  const template = str(options.stateFile).trim()
+  const path = textOption(options, 'stateFile')
+  const template = path.toLowerCase() === 'off' ? '' : path
   const snap = await read($, snapshot)
   // every host failed and nothing was known: keep the file another session wrote while it was online
   if (!template || !snap || (snap.error && snap.prs.length === 0)) return
@@ -131,7 +132,7 @@ async function refresh($: EngineInterface, options: PluginOptions) {
   await loadPrompts($)
   const [{ prs, errors }, remote] = await Promise.all([
     fetchAll($, options),
-    run($, str(options.remoteCommand)).catch(() => undefined),
+    run($, textOption(options, 'remoteCommand')).catch(() => undefined),
   ])
   const now = await $.clock.now()
   const project = remote?.exitCode === 0 ? repoFromRemote(remote.stdout) : undefined
@@ -159,7 +160,7 @@ async function watchCommand($: EngineInterface, options: PluginOptions, ref: str
 
 // the session name for a PR, e.g. pr-3109-worker; empty turns naming off
 const sessionNameOf = (options: PluginOptions, pr: Pr) =>
-  options.autoRename === false ? '' : safeSessionName(plain(str(options.sessionName).trim(), prVars(pr)))
+  options.autoRename === false ? '' : safeSessionName(plain(textOption(options, 'sessionName'), prVars(pr)))
 
 // where the PR's repo is cloned, undefined when cloneDir is blank
 async function cloneDirOf($: EngineInterface, options: PluginOptions, pr: Pr) {
@@ -308,7 +309,7 @@ export const register: Register = (on, options) => {
     // handlers run unawaited, so a rejection from the engine has to end in a toast
     const guard = (task: () => unknown) => void guarded($, task)
     const submit = (text: string) => guard(() => $.prompt.submit({ text }))
-    const open = (url: string) => guard(async () => toastFailure($, await run($, str(options.openCommand), { url })))
+    const open = (url: string) => guard(async () => toastFailure($, await run($, textOption(options, 'openCommand'), { url })))
     const copy = (text: string, surface: Parameters<typeof $.ui.copy>[0]['surface']) =>
       guard(async () => {
         const result = await $.ui.copy({ text, surface })

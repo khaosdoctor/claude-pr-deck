@@ -1,7 +1,7 @@
 import type { ConfigRow, ConfigValue, Elements, EngineInterface, PluginOptions } from 'claude-code'
 
 import { run } from './run'
-import { guarded } from './snapshot'
+import { guarded, textOption } from './snapshot'
 
 type Deps = {
   options: PluginOptions
@@ -36,8 +36,7 @@ export async function configScreen($: EngineInterface, { Box, Text, Button }: El
   // the user-level settings file, where pluginConfigs[<plugin>].options is written unless the plugin is set up per project
   const openSettings = async () => {
     const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${(await $.env.get('HOME')) ?? ''}/.claude`
-    const editor = options.editorCommand
-    const result = await run($, typeof editor === 'string' ? editor : '', { path: `${dir}/settings.json` })
+    const result = await run($, textOption(options, 'editorCommand'), { path: `${dir}/settings.json` })
     if (result.exitCode !== 0) $.ui.toast(result.stderr.trim().slice(0, 200) || `command exited ${result.exitCode}`)
   }
   // handlers run unawaited, so a rejection from the engine has to end in a toast
