@@ -9,7 +9,7 @@
 
 ## Options
 
-Every option has a description in `/config` under pr-deck. Prompt options are in [Prompts](prompts.md).
+Set them in `/config` under pr-deck. Each has a description there. Prompt options are in [Prompts](prompts.md).
 
 | Option | Values | Default |
 | --- | --- | --- |
@@ -37,15 +37,16 @@ Every option has a description in `/config` under pr-deck. Prompt options are in
 | Auto rename sessions | on, off | on |
 | State file | path | `~/.cache/pr-deck/state.json` |
 
-Issue tracker URL is the base the ticket key is appended to. `https://yourcompany.atlassian.net` becomes `https://yourcompany.atlassian.net/browse/ABC-123` (a URL that already has `/browse` is used as is). For Linear, use `https://linear.app/yourteam/issue/`.
-
-Gitea, Forgejo and Azure DevOps do not report CI state or unresolved threads, so those cards show none. Azure DevOps also has no diff stats and lists the project `az` detects from the git remote or from `az devops configure`.
-
-Related pages: [Sessions](sessions.md) for **Local clone folder** and **New session command**, [Session name](prompts.md#session-name) for **Auto rename sessions**, [External integrations](integrations.md#state-file) for **State file**.
+- **Issue tracker URL** is the base the ticket key is appended to. `https://yourcompany.atlassian.net` gives `https://yourcompany.atlassian.net/browse/ABC-123`, and a URL that already has `/browse` is used as is. For Linear, use `https://linear.app/yourteam/issue/`.
+- Gitea, Forgejo and Azure DevOps do not report CI state or unresolved threads, so those cards show none.
+- Azure DevOps also has no diff stats, and lists the project `az` detects from the git remote or from `az devops configure`.
+- **Local clone folder** and **New session command**: [Sessions](sessions.md).
+- **Auto rename sessions**: [Session name](prompts.md#session-name).
+- **State file**: [External integrations](integrations.md#state-file).
 
 ## Templates
 
-Commands are shell templates run with `sh -c`. Placeholders in braces get the value wrapped in single quotes, so do not add your own quotes. The exception is **Local clone folder**, whose placeholders are plain text.
+Commands are shell templates run with `sh -c`.
 
 | Option | Placeholders |
 | --- | --- |
@@ -55,19 +56,20 @@ Commands are shell templates run with `sh -c`. Placeholders in braces get the va
 | Local clone folder | `{host}`, `{owner}`, `{repo}` |
 | New session command | see [Sessions](sessions.md#new-session-command) |
 
-An empty fetch command uses the built-in call (`gh api graphql`, `glab api graphql`, `tea api` with `jq`, `az repos pr list`). A custom one has to print what the built-in call prints. The default commands are macOS ones, so change them on another system.
+- Placeholders in braces get the value wrapped in single quotes, so do not add your own quotes. **Local clone folder** is the exception, its placeholders are plain text.
+- An empty fetch command uses the built-in call: `gh api graphql`, `glab api graphql`, `tea api` with `jq`, `az repos pr list`. A custom one has to print what the built-in call prints.
+- The default commands are macOS ones, so change them on another system.
 
 ## Config screen
 
-***⚙ Config*** in the pane shows the options with toggles and one button per value.
-
 ![The config screen](config.jpg)
 
-***✎ Open file*** opens `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`), where the options are stored. ***✎ open ignored list*** opens the config file.
+***⚙ Config*** in the pane shows the options with toggles and one button per value.
+
+- ***✎ Open file*** opens `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`), where the options are stored.
+- ***✎ open ignored list*** opens the config file.
 
 ## Config file
-
-`~/.config/pr-deck.json` holds the ignored repos and the status overrides:
 
 ```json
 {
@@ -76,4 +78,8 @@ An empty fetch command uses the built-in call (`gh api graphql`, `glab api graph
 }
 ```
 
-`overrides` maps a PR URL to `○ waiting`, `● needs you` or `✓ approved`, and entries for PRs that are no longer open are dropped on save. Edits apply on the next refresh.
+`~/.config/pr-deck.json` holds the ignored repos and the status overrides.
+
+- `overrides` maps a PR URL to `○ waiting`, `● needs you` or `✓ approved`.
+- Entries for PRs that are no longer open are dropped on save.
+- Edits apply on the next refresh.

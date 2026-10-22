@@ -12,25 +12,25 @@
 
 Templates set in `/config` under pr-deck, or in `~/.claude/settings.json`. Empty means the default.
 
-**Fable review prompt** is sent by ***✦ Fable review***:
+**Fable review prompt**, sent by ***✦ Fable review***:
 
 ```
 Spawn a subagent with model fable to review {url} against the repo's own standards. Report findings to me, do not post anything to {host}.
 ```
 
-**Work on it prompt** is sent by ***❯ Work on it*** and is the first prompt of ***⧉ New session***:
+**Work on it prompt**, sent by ***❯ Work on it*** and the first prompt of ***⧉ New session***:
 
 ```
 Load context for {url}: check out branch {branch} in the {repo} repo, read the PR description, diff, CI status and review comments ({cli} reads them), then wait for my instructions.
 ```
 
-**Watch prompt** is sent by ***◉ watch*** and `/prs watch`:
+**Watch prompt**, sent by ***◉ watch*** and `/prs watch`:
 
 ```
 Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes, waiting in the background between checks, tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.
 ```
 
-**Session name** defaults to `pr-{pr}-worker`. The ***✦ Copilot pass*** prompt cannot be changed.
+**Session name** defaults to `pr-{pr}-worker`.
 
 ```json
 {
@@ -45,11 +45,11 @@ Watch {url} until it is green: re-check its CI and review state with {cli} every
 }
 ```
 
-For PR #3109 on `acme/node`, branch `fix-logging`, that names the session `node-3109`. Saving reloads the mod.
+- For PR #3109 on `acme/node`, branch `fix-logging`, that names the session `node-3109`.
+- Saving reloads the mod.
+- The ***✦ Copilot pass*** prompt cannot be changed.
 
 ## Placeholders
-
-Filled in as plain text, with no shell quoting. An unknown one stays as written.
 
 | Placeholder | Value |
 | --- | --- |
@@ -63,13 +63,16 @@ Filled in as plain text, with no shell quoting. An unknown one stays as written.
 | `{host}` | code host name, such as `github.com` |
 | `{cli}` | the host's command line tool, such as `gh` |
 
+Filled in as plain text, with no shell quoting. An unknown one stays as written.
+
 ## Session name
 
-***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>`. Anything that is not an ASCII letter, digit, `.`, `_` or `-` becomes `-`, and leading dashes are dropped. An empty name or ***Auto rename sessions*** off skips naming.
+***⧉ New session*** starts `claude -n <name>` and ***⎇ Switch here*** runs `/rename <name>`.
+
+- Anything that is not an ASCII letter, digit, `.`, `_` or `-` becomes `-`, and leading dashes are dropped.
+- An empty name, or ***Auto rename sessions*** off, skips naming.
 
 ## Prompts per state
-
-The next-action button, ***❯ Work on it*** and ***◉ watch*** can send a different prompt per state. A PR is in the first state that matches, in the order of this list: `draft`, `ci-failed`, `conflicts`, `comments`, `mergeable`, `stack-below`, `ci-running`, `no-reviewers`, `maintainers`, `in-review`.
 
 ```mermaid
 stateDiagram-v2
@@ -103,17 +106,12 @@ stateDiagram-v2
     end note
 ```
 
-The wait-only states are `stack-below`, `ci-running`, `maintainers` and `in-review`. They have no prompt of their own, so a `next` template turns the wait into a button and the PR starts counting as needing you.
+The next-action button, ***❯ Work on it*** and ***◉ watch*** can send a different prompt per state.
+
+- A PR is in the first state that matches, in this order: `draft`, `ci-failed`, `conflicts`, `comments`, `mergeable`, `stack-below`, `ci-running`, `no-reviewers`, `maintainers`, `in-review`.
+- The wait-only states are `stack-below`, `ci-running`, `maintainers` and `in-review`. They have no prompt of their own, so a `next` template turns the wait into a button and the PR starts counting as needing you.
 
 ## Prompts file
-
-`~/.config/pr-deck.prompts.jsonc` is yours, the mod only reads it, so comments and trailing commas are fine. Each state takes up to three templates and anything left out keeps the default:
-
-- `next` replaces the next-action prompt.
-- `work` replaces the ***❯ Work on it*** and ***⧉ New session*** prompt in that state.
-- `watch` replaces the ***◉ watch*** prompt in that state.
-
-They take the [placeholders](#placeholders) plus `{readyHint}` (the host's command for marking a PR ready, like `gh pr ready`) and `{state}`.
 
 ```jsonc
 {
@@ -127,4 +125,14 @@ They take the [placeholders](#placeholders) plus `{readyHint}` (the host's comma
 }
 ```
 
-A file that does not parse shows the error in the pane and the defaults stay. Edits apply on the next refresh. ***✎ open prompts file*** on the ***⚙ Config*** screen opens the file, and creates it first with every state as a commented-out block holding its default text.
+`~/.config/pr-deck.prompts.jsonc` is yours, the mod only reads it, so comments and trailing commas are fine. Each state takes up to three templates, and anything left out keeps the default:
+
+- `next` replaces the next-action prompt.
+- `work` replaces the ***❯ Work on it*** and ***⧉ New session*** prompt in that state.
+- `watch` replaces the ***◉ watch*** prompt in that state.
+
+They take the [placeholders](#placeholders) plus `{readyHint}` (the host's command for marking a PR ready, like `gh pr ready`) and `{state}`.
+
+- A file that does not parse shows the error in the pane, and the defaults stay.
+- Edits apply on the next refresh.
+- ***✎ open prompts file*** on the ***⚙ Config*** screen opens the file, and creates it first with every state as a commented-out block holding its default text.

@@ -6,11 +6,20 @@
 - [Terminal detection](#terminal-detection)
 - [New session command](#new-session-command)
 
-***⎇ Switch here*** moves the current session to the PR's repo and branch. ***⧉ New session*** opens a new Claude session in the PR's clone folder with the ***Work on it*** prompt, and a toast says where it went or what failed. Both name the session as described in [Session name](prompts.md#session-name).
+- ***⎇ Switch here*** moves the current session to the PR's repo and branch.
+- ***⧉ New session*** opens a new Claude session in the PR's clone folder with the **Work on it prompt**. A toast says where it went or what failed.
+- Both name the session as in [Session name](prompts.md#session-name).
 
 ## Local clone folder
 
-A path template like `~/code/{host}/{owner}/{repo}`, with a leading `~` as your home folder. ***New session*** starts there and ***Switch here*** tells the session to look there first. When empty, new sessions start in the current folder and ***Switch here*** has the session look around nearby folders, or clone the repo.
+```
+~/code/{host}/{owner}/{repo}
+```
+
+A path template, with a leading `~` as your home folder.
+
+- ***New session*** starts there and ***Switch here*** tells the session to look there first.
+- Empty: new sessions start in the current folder, and ***Switch here*** has the session look in nearby folders, or clone the repo.
 
 ## Terminal detection
 
@@ -27,7 +36,7 @@ With an empty **New session command**, the terminal comes from the session's env
 
 ## New session command
 
-A non-empty command replaces detection. Put `--` between `{claude}` and `{prompt}`, as the built-in ones do, so a prompt that starts with a dash is not read as an option. Quoting works as in [Templates](configuration.md#templates).
+A non-empty command replaces detection.
 
 | Placeholder | Value |
 | --- | --- |
@@ -40,3 +49,6 @@ A non-empty command replaces detection. Put `--` between `{claude}` and `{prompt
 | `{branch}` | its head branch |
 | `{repo}` | the `owner/repo` name |
 | `{name}` | the session name |
+
+- Put `--` between `{claude}` and `{prompt}`, as the built-in commands do, so a prompt that starts with a dash is not read as an option.
+- Quoting works as in [Templates](configuration.md#templates).
