@@ -8,6 +8,7 @@ import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, state
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { quote, run } from './run'
 import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName, textOption } from './snapshot'
+import type { StoredConfig } from './snapshot'
 import { TERMINALS } from './terminals'
 import type { TerminalEnv } from './terminals'
 
@@ -52,13 +53,18 @@ function serial<T>(task: () => Promise<T>): Promise<T> {
   return result
 }
 
+// undefined when the file does not parse (mid-edit)
+async function readConfig($: EngineInterface) {
+  const path = await configFile($, 'pr-deck.json')
+  const text = (await $.fs.exists(path)) ? await $.fs.read(path).catch(() => '') : '{}'
+  return parseConfig(text, MOVES)
+}
+
 // The config file is the source of truth; edits to it apply on the next refresh.
 function loadConfig($: EngineInterface) {
   return serial(async () => {
-    const path = await configFile($, 'pr-deck.json')
-    const text = (await $.fs.exists(path)) ? await $.fs.read(path).catch(() => '') : '{}'
-    const config = parseConfig(text, MOVES)
-    // a file that does not parse (mid-edit) keeps what is in memory, or the next save would wipe the person's list
+    const config = await readConfig($)
+    // a file that does not parse keeps what is in memory
     if (!config) return
     await update($, ignored, () => config.ignored)
     await update($, overrides, () => config.overrides)
@@ -77,29 +83,35 @@ async function loadPrompts($: EngineInterface) {
   }
 }
 
-async function saveConfig($: EngineInterface) {
+// Applies one change to what the file holds now, not to what the last refresh read, so an edit from another session or by hand survives.
+// ponytail: $.fs has no lock or rename, so two sessions saving in the same instant can still lose one change; the window is one read and one write.
+async function saveConfig($: EngineInterface, change: (config: StoredConfig) => StoredConfig = config => config) {
+  const current = await readConfig($)
+  // writing over a file that does not parse would wipe the person's edit
+  if (!current) throw new Error('~/.config/pr-deck.json does not parse; fix it and try again')
+  const changed = change(current)
   const snap = await read($, snapshot)
   const urls = new Set(snap?.prs.map(pr => pr.url))
   // overrides of PRs that are gone are dropped; before the first fetch, or after a failed one, there is nothing to compare with
-  const kept = Object.entries(await read($, overrides)).filter(([url]) => !snap || snap.error || urls.has(url))
-  const config = { ignored: await read($, ignored), overrides: Object.fromEntries(kept) }
+  const kept = Object.entries(changed.overrides).filter(([url]) => !snap || snap.error || urls.has(url))
+  const config = { ignored: changed.ignored, overrides: Object.fromEntries(kept) }
+  await update($, ignored, () => config.ignored)
+  await update($, overrides, () => config.overrides)
   await $.fs.write(await configFile($, 'pr-deck.json'), `${JSON.stringify(config, null, 2)}\n`)
 }
 
 // undefined puts the PR back to auto
 function saveOverride($: EngineInterface, url: string, status: string | undefined) {
-  return serial(async () => {
-    const rest = Object.entries(await read($, overrides)).filter(([key]) => key !== url)
-    await update($, overrides, () => Object.fromEntries(status ? [...rest, [url, status]] : rest))
-    await saveConfig($)
-  })
+  return serial(() =>
+    saveConfig($, config => {
+      const rest = Object.entries(config.overrides).filter(([key]) => key !== url)
+      return { ...config, overrides: Object.fromEntries(status ? [...rest, [url, status]] : rest) }
+    }),
+  )
 }
 
 function saveIgnored($: EngineInterface, list: (current: string[]) => string[]) {
-  return serial(async () => {
-    await update($, ignored, list)
-    await saveConfig($)
-  })
+  return serial(() => saveConfig($, config => ({ ...config, ignored: list(config.ignored) })))
 }
 
 async function openFile($: EngineInterface, options: PluginOptions, name: string, create: (path: string) => Promise<unknown>) {
