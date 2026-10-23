@@ -59,6 +59,7 @@ Commands are shell templates run with `sh -c`.
 - Placeholders in braces get the value wrapped in single quotes, so do not add your own quotes. **Local clone folder** is the exception, its placeholders are plain text.
 - An empty fetch command uses the built-in call: `gh api graphql`, `glab api graphql`, `tea api` with `jq`, `az repos pr list`. A custom one has to print what the built-in call prints.
 - The default commands are macOS ones, so change them on another system.
+- The open config file command has no terminal, so a terminal editor like `vim` can't run there. When the command fails or is still running after 5 seconds, the file opens with the system's opener instead: `xdg-open` where it exists, `open -t` otherwise.
 
 ## Config screen
 

@@ -134,5 +134,5 @@ The next-action button, ***❯ Work on it*** and ***◉ watch*** can send a diff
 They take the [placeholders](#placeholders) plus `{readyHint}` (the host's command for marking a PR ready, like `gh pr ready`) and `{state}`.
 
 - A file that does not parse shows the error in the pane, and the defaults stay.
-- Edits apply on the next refresh.
+- Edits apply within a couple of seconds of saving the file.
 - ***✎ open prompts file*** on the ***⚙ Config*** screen opens the file, and creates it first with every state as a commented-out block holding its default text.

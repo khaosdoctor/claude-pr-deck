@@ -137,7 +137,7 @@
     "editorCommand": {
       "type": "string",
       "title": "Open config file command",
-      "description": "Opens the config file; {path} is its path.",
+      "description": "Opens the config file; {path} is its path. A terminal editor like vim, or a command that fails, falls back to the system opener.",
       "default": "open -t {path}"
     },
     "remoteCommand": {

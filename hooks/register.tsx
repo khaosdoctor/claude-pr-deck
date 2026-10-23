@@ -6,7 +6,7 @@ import { configScreen } from './config-screen'
 import { parseJsonc } from './jsonc'
 import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, stateFileOf, summaryOf, toStacks, toStatePrompts, watchPrompt, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
-import { quote, run } from './run'
+import { openInEditor, quote, run } from './run'
 import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName, textOption } from './snapshot'
 import type { StoredConfig } from './snapshot'
 import { TERMINALS } from './terminals'
@@ -71,9 +71,13 @@ function loadConfig($: EngineInterface) {
   })
 }
 
+// mtime of the prompts file at its last load: 0 when it was missing, -1 before the first load
+const promptsLoaded = { mtimeMs: -1 }
+
 // A separate file from pr-deck.json: the mod only reads it, so it can keep the user's comments.
 async function loadPrompts($: EngineInterface) {
   const path = await configFile($, 'pr-deck.prompts.jsonc')
+  promptsLoaded.mtimeMs = await $.fs.stat(path).then(stat => stat.mtimeMs, () => 0)
   if (!(await $.fs.exists(path))) return update($, prompts, () => ({ map: {} }))
   try {
     const map = toStatePrompts(parseJsonc(await $.fs.read(path)))
@@ -81,6 +85,13 @@ async function loadPrompts($: EngineInterface) {
   } catch (error) {
     return update($, prompts, () => ({ map: {}, error: error instanceof Error ? error.message : String(error) }))
   }
+}
+
+// $.fs has no watch, so a save in the editor is picked up by polling the file's mtime
+async function reloadChangedPrompts($: EngineInterface) {
+  const path = await configFile($, 'pr-deck.prompts.jsonc')
+  const mtimeMs = await $.fs.stat(path).then(stat => stat.mtimeMs, () => 0)
+  if (mtimeMs !== promptsLoaded.mtimeMs) await loadPrompts($)
 }
 
 // Applies one change to what the file holds now, not to what the last refresh read, so an edit from another session or by hand survives.
@@ -117,7 +128,7 @@ function saveIgnored($: EngineInterface, list: (current: string[]) => string[]) 
 async function openFile($: EngineInterface, options: PluginOptions, name: string, create: (path: string) => Promise<unknown>) {
   const path = await configFile($, name)
   if (!(await $.fs.exists(path))) await create(path)
-  toastFailure($, await run($, textOption(options, 'editorCommand'), { path }))
+  toastFailure($, await openInEditor($, textOption(options, 'editorCommand'), path))
 }
 
 // a leading ~ is the home folder
@@ -251,6 +262,7 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane, or watch one until it is green', argumentHint: '[watch <pr>]' })
     void guarded($, () => refresh($, options))
     $.clock.every((Number(options.refreshMinutes) || 2) * 60 * 1000, () => void guarded($, () => refresh($, options)))
+    $.clock.every(2000, () => void guarded($, () => reloadChangedPrompts($)))
     // session.start also fires on a reload, so this reopens a pane the person closed then; unfocused so the prompt keeps the cursor
     if (options.openOnStart === true) void guarded($, () => $.ui.open({ id: PANE, title: 'Pull requests' }))
 
