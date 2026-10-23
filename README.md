@@ -16,13 +16,13 @@ Reads from GitHub, GitLab, Gitea/Forgejo and Azure DevOps.
 ## Install
 
 ```
-/plugin install pr-deck --marketplace khaosdoctor/claude-pr-list-mod
+/plugin install pr-deck --marketplace khaosdoctor/claude-pr-deck
 ```
 
 From a shell:
 
 ```bash
-claude plugin install pr-deck --marketplace khaosdoctor/claude-pr-list-mod
+claude plugin install pr-deck --marketplace khaosdoctor/claude-pr-deck
 ```
 
 From a local clone (add `claude --plugin-dir <path to clone>` to load it for one session only):
@@ -32,7 +32,7 @@ claude plugin marketplace add <path to clone>
 claude plugin install pr-deck@claude-pr-list-mod
 ```
 
-Desktop app: click + next to the prompt box, then ***Plugins -> Add marketplace*** with `khaosdoctor/claude-pr-list-mod`, then ***Add plugin***.
+Desktop app: click + next to the prompt box, then ***Plugins -> Add marketplace*** with `khaosdoctor/claude-pr-deck`, then ***Add plugin***.
 
 Update, then restart Claude Code:
 
