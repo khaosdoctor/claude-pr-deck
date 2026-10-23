@@ -30,6 +30,12 @@ Load context for {url}: check out branch {branch} in the {repo} repo, read the P
 Watch {url} until it is green: re-check its CI and review state with {cli} every few minutes, waiting in the background between checks, tell me about each change in one line, and stop as soon as CI passes and nothing else needs me.
 ```
 
+**Monitor prompt**, sent by `/prs monitor`. It takes `{path}`, the state file, and `{prs}`, the sentence naming the PRs to watch, instead of the PR placeholders:
+
+```
+Monitor the pr-deck state file at {path}. pr-deck rewrites it on every refresh with my open PRs, grouped by owner/repo, one entry per PR keyed by its url. {prs} Watch the file in the background (the Monitor tool, or a background loop on its modification time), not with sleeps in the foreground. When an entry of those PRs changes its status, ci, review, mergeable, unresolved or nextAction fields, tell me in one line what changed. A PR that is no longer in the file was merged or closed: say so and stop watching it. Stop once none are left.
+```
+
 **Session name** defaults to `pr-{pr}-worker`.
 
 ```json

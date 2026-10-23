@@ -7,6 +7,7 @@
 - [Your move](#your-move)
 - [Collapse](#collapse)
 - [Watching a PR](#watching-a-pr)
+- [Monitoring the state file](#monitoring-the-state-file)
 
 ## Cards
 
@@ -57,3 +58,17 @@ The states behind this are in [Prompts per state](prompts.md#prompts-per-state).
 - A bare number open in more than one repo picks the session's repo, and otherwise asks for `owner/repo#number`.
 - A PR the session has not seen yet makes it refresh first.
 - The prompt is the **Watch prompt** option, see [Prompt options](prompts.md#prompt-options).
+
+## Monitoring the state file
+
+```
+/prs monitor
+/prs monitor acme/api
+```
+
+`/prs monitor` asks the session to watch the [state file](integrations.md#state-file) in the background and report each change to its PRs in one line. A PR that leaves the file was merged or closed, and the session stops watching it.
+
+- With no filter, the session watches the PRs it owns: the ones it opened or worked on. PRs whose head is the current branch are named in the prompt as a hint.
+- The filter is `all`, an `owner/repo`, or one PR as in `/prs watch`.
+- The **State file** option must not be `off`.
+- The prompt is the **Monitor prompt** option, see [Prompt options](prompts.md#prompt-options).

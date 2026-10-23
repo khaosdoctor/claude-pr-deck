@@ -17,7 +17,7 @@ const SECTIONS: Record<string, string[]> = {
   Display: [],
   'Hosts and trackers': ['providers', 'tracker', 'trackerUrl', 'githubCommand', 'gitlabCommand', 'giteaCommand', 'azdoCommand'],
   Commands: ['openCommand', 'editorCommand', 'remoteCommand', 'cloneDir', 'newSessionCommand', 'autoRename', 'stateFile'],
-  Prompts: ['sessionName', 'fablePrompt', 'workPrompt', 'watchPrompt'],
+  Prompts: ['sessionName', 'fablePrompt', 'workPrompt', 'watchPrompt', 'monitorPrompt'],
 }
 const sectionOf = (field: string) => Object.keys(SECTIONS).find(section => SECTIONS[section]?.includes(field)) ?? 'Display'
 

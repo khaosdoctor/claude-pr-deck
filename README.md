@@ -57,10 +57,12 @@ The CLI of each code host you enable, signed in:
 ```
 /prs
 /prs watch acme/api#7
+/prs monitor
 ```
 
 - `/prs` opens the pane.
 - `/prs watch <pr>` watches a PR until CI passes, see [Watching a PR](docs/pane.md#watching-a-pr).
+- `/prs monitor [filter]` has the session watch the state file for changes to its PRs, see [Monitoring the state file](docs/pane.md#monitoring-the-state-file).
 
 ## Docs
 

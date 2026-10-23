@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Pr } from '../types'
-import { findPr, guarded, textOption, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName } from './snapshot'
+import { findPr, guarded, textOption, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, selectPrs, short, splitFullName } from './snapshot'
 
 const pr = (provider: string, number: number) => ({ provider, number, url: `https://${provider}.test/${number}` }) as Pr
 
@@ -23,6 +23,19 @@ test('/prs watch finds a PR by number, owner/repo#number or URL', () => {
   expect(findPr(prs, '42')).toBe('None of your open PRs is 42.')
   expect(findPr(prs, '')).toBe('Which PR? Pass its number, owner/repo#number or URL.')
   expect(findPr(prs, 'seven')).toBe('seven is not a PR number, owner/repo#number or URL.')
+})
+
+test('/prs monitor picks all PRs, a repo, or one PR', () => {
+  const api = { number: 7, fullName: 'acme/api', url: 'https://github.com/acme/api/pull/7' } as Pr
+  const web = { number: 7, fullName: 'acme/web', url: 'https://github.com/acme/web/pull/7' } as Pr
+  const solo = { number: 9, fullName: 'acme/web', url: 'https://github.com/acme/web/pull/9' } as Pr
+  const prs = [api, web, solo]
+  expect(selectPrs(prs, 'all')).toEqual(prs)
+  expect(selectPrs(prs, 'Acme/Web')).toEqual([web, solo])
+  expect(selectPrs(prs, 'acme/api#7')).toEqual([api])
+  expect(selectPrs(prs, '9')).toEqual([solo])
+  expect(selectPrs(prs, 'acme/other')).toBe('acme/other is not a PR number, owner/repo#number or URL.')
+  expect(selectPrs([], 'all')).toBe('You have no open PRs.')
 })
 
 test('a failed host keeps its last PRs while the others refresh', () => {

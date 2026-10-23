@@ -4,10 +4,10 @@ import type { EngineInterface, PluginOptions, ProcessRunResult, Register } from 
 import type { GroupBy, Pr, PromptsFile, Snapshot, Stack, StatePrompts, View } from '../types'
 import { configScreen } from './config-screen'
 import { parseJsonc } from './jsonc'
-import { DEFAULT_FABLE_PROMPT, nextAction, plain, prVars, promptsTemplate, stateFileOf, summaryOf, toStacks, toStatePrompts, watchPrompt, workAction } from './prs'
+import { DEFAULT_FABLE_PROMPT, monitorPrompt, nextAction, plain, prVars, promptsTemplate, stateFileOf, summaryOf, toStacks, toStatePrompts, watchPrompt, workAction } from './prs'
 import { fetchAll, repoFromRemote, ticketUrl } from './providers'
 import { openInEditor, quote, run } from './run'
-import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, short, splitFullName, textOption } from './snapshot'
+import { findPr, guarded, keepFailedHosts, parseConfig, repoKeyOf, safeSessionName, selectPrs, short, splitFullName, textOption } from './snapshot'
 import type { StoredConfig } from './snapshot'
 import { TERMINALS } from './terminals'
 import type { TerminalEnv } from './terminals'
@@ -137,17 +137,22 @@ async function expandHome($: EngineInterface, path: string) {
   return `${(await $.env.get('HOME')) ?? ''}${path.slice(1)}`
 }
 
+// empty when stateFile is "off"
+async function stateFilePath($: EngineInterface, options: PluginOptions) {
+  const path = textOption(options, 'stateFile')
+  return path.toLowerCase() === 'off' ? '' : expandHome($, path)
+}
+
 // Other tools watch this file; stateFile "off" turns it off. $.fs has no rename, so it is a plain write.
 async function writeStateFile($: EngineInterface, options: PluginOptions) {
-  const path = textOption(options, 'stateFile')
-  const template = path.toLowerCase() === 'off' ? '' : path
+  const path = await stateFilePath($, options)
   const snap = await read($, snapshot)
   // every host failed and nothing was known: keep the file another session wrote while it was online
-  if (!template || !snap || (snap.error && snap.prs.length === 0)) return
+  if (!path || !snap || (snap.error && snap.prs.length === 0)) return
   const manual = await read($, overrides)
   const { map } = await read($, prompts)
   const state = stateFileOf(snap.prs, (pr, isBottom) => resolveStatus(pr, isBottom, manual, map), snap.updatedAt, snap.error, await read($, ignored))
-  await $.fs.write(await expandHome($, template), `${JSON.stringify(state, null, 2)}\n`)
+  await $.fs.write(path, `${JSON.stringify(state, null, 2)}\n`)
 }
 
 async function refresh($: EngineInterface, options: PluginOptions) {
@@ -179,6 +184,22 @@ async function watchCommand($: EngineInterface, options: PluginOptions, ref: str
   const { action } = resolveStatus(pr, isBottom, await read($, overrides), map)
   void guarded($, () => $.prompt.submit({ text: watchPrompt(pr, action.state, str(options.watchPrompt), map) }))
   return `Watching ${pr.fullName}#${pr.number}.`
+}
+
+// `/prs monitor [filter]` asks the session to watch the state file; without a filter it watches the PRs the session owns
+async function monitorCommand($: EngineInterface, options: PluginOptions, filter: string) {
+  const path = await stateFilePath($, options)
+  if (!path) return 'The state file is off; set the State file option to a path first.'
+  const known = await read($, snapshot)
+  const snap = known ?? (await refresh($, options).then(() => read($, snapshot)))
+  const prs = snap?.prs ?? []
+  const picked = filter ? selectPrs(prs, filter, snap?.project) : undefined
+  if (typeof picked === 'string') return snap?.error ? `${picked} The last refresh failed: ${snap.error}` : picked
+  const branch = picked ? undefined : await run($, 'git rev-parse --abbrev-ref HEAD')
+  const head = branch?.exitCode === 0 ? branch.stdout.trim() : ''
+  const onBranch = prs.filter(pr => head && pr.head === head && pr.fullName === snap?.project)
+  void guarded($, () => $.prompt.submit({ text: monitorPrompt(path, picked, onBranch, str(options.monitorPrompt)) }))
+  return picked ? `Monitoring ${picked.length} PR${picked.length === 1 ? '' : 's'} in ${path}.` : `Monitoring this session's PRs in ${path}.`
 }
 
 // the session name for a PR, e.g. pr-3109-worker; empty turns naming off
@@ -259,7 +280,11 @@ export const register: Register = (on, options) => {
   }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'prs', description: 'Show your open PRs and stacks in a pane, or watch one until it is green', argumentHint: '[watch <pr>]' })
+    await $.command.register({
+      name: 'prs',
+      description: 'Show your open PRs and stacks in a pane, watch one until it is green, or monitor the state file for changes',
+      argumentHint: '[watch <pr> | monitor [all|owner/repo|pr]]',
+    })
     void guarded($, () => refresh($, options))
     $.clock.every((Number(options.refreshMinutes) || 2) * 60 * 1000, () => void guarded($, () => refresh($, options)))
     $.clock.every(2000, () => void guarded($, () => reloadChangedPrompts($)))
@@ -272,6 +297,7 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'prs' }, async ($, e) => {
     const [sub, ...rest] = e.args.trim().split(/\s+/)
     if (sub === 'watch') return { text: await watchCommand($, options, rest.join(' ')) }
+    if (sub === 'monitor') return { text: await monitorCommand($, options, rest.join(' ')) }
     void guarded($, () => refresh($, options))
     await $.ui.open({ id: PANE, title: 'Pull requests', focus: true })
 

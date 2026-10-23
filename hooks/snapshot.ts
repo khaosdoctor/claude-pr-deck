@@ -59,6 +59,19 @@ export function findPr(prs: Pr[], ref: string, project?: string): Pr | string {
   return `#${number} is open in ${found.map(pr => pr.fullName).join(', ')}, pass owner/repo#${number}.`
 }
 
+// The PRs `/prs monitor <filter>` names: all of them, every PR of an owner/repo, or one PR as findPr reads it.
+// A string is the reason nothing matched.
+export function selectPrs(prs: Pr[], filter: string, project?: string): Pr[] | string {
+  const text = filter.trim()
+  if (text.toLowerCase() === 'all') return prs.length > 0 ? prs : 'You have no open PRs.'
+  if (/^[^\s#:]+\/[^\s#:]+$/.test(text) && !/^\d+$/.test(text)) {
+    const inRepo = prs.filter(pr => pr.fullName === text.toLowerCase())
+    if (inRepo.length > 0) return inRepo
+  }
+  const pr = findPr(prs, text, project)
+  return typeof pr === 'string' ? pr : [pr]
+}
+
 // A text field can be stored as "" (an install dialog that shows it empty, a cleared /config row), which hides its manifest default,
 // so a blank one falls back here. Keep in sync with the defaults in plugin.json.
 const TEXT_DEFAULTS: Record<string, string> = {

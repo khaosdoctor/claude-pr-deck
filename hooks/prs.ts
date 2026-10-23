@@ -211,6 +211,20 @@ export function stateFileOf(prs: Pr[], statusFor: (pr: Pr, isBottom: boolean) =>
   return { updatedAt: new Date(updatedAt).toISOString(), error: error || undefined, repos }
 }
 
+// Same text as the monitorPrompt default in plugin.json, used when the option is blank.
+export const DEFAULT_MONITOR_PROMPT =
+  'Monitor the pr-deck state file at {path}. pr-deck rewrites it on every refresh with my open PRs, grouped by owner/repo, one entry per PR keyed by its url. {prs} Watch the file in the background (the Monitor tool, or a background loop on its modification time), not with sleeps in the foreground. When an entry of those PRs changes its status, ci, review, mergeable, unresolved or nextAction fields, tell me in one line what changed. A PR that is no longer in the file was merged or closed: say so and stop watching it. Stop once none are left.'
+
+// The prompt `/prs monitor` sends. Without picked PRs the session works out which ones it owns, helped by the PRs on its current branch.
+export function monitorPrompt(path: string, picked: Pr[] | undefined, onBranch: Pr[] = [], template = ''): string {
+  const name = (pr: Pr) => `${pr.fullName}#${pr.number} (${pr.url})`
+  const branchHint = onBranch.length > 0 ? `; the current branch is the head of ${onBranch.map(name).join(', ')}` : ''
+  const prs = picked
+    ? `Watch only these PRs: ${picked.map(name).join(', ')}.`
+    : `Watch only the PRs this session owns, the ones it opened or has worked on${branchHint}. If you cannot tell which those are, ask me before you start.`
+  return plain(template.trim() || DEFAULT_MONITOR_PROMPT, { path, prs })
+}
+
 // The third button: once the PR is green and only waiting on people, put Copilot on it
 // (only when the user allows it and the code host has Copilot).
 // The work prompt: the state's work template, then the workPrompt option, then the built-in default.
